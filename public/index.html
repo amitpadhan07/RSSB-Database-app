@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSSB RUDRAPUR</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Favicon using local file -->
+    <link rel="icon" type="image/png" href="logo.png"> 
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <div id="login-screen">
+      <div class="login-box">
+        <!-- Logo on login page -->
+        <img src="logo.png" alt="Logo" class="logo">
+
+        <h2>WELCOME TO RSSB RUDRAPUR DATABASE SYSTEM</h2>
+        <h2>LOGIN</h2>
+
+        <input id="username" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <p>Default: <b>admin / 1234</b></p>
+      </div>
+    </div>
+
+    <div class="container">
+        <!-- Logo on homepage -->
+        <img src="logo.png" alt="Logo" class="logo">
+
+        <h1>RSSB SEWADAR DATABASE SYSTEM</h1>
+        
+        <div class="menu">
+            <button onclick="showForm('add-form')">Add Record</button>
+            <button onclick="showAllRecords()">View All</button>
+            <button onclick="showForm('search-form')">Search</button>
+            <button onclick="showForm('update-form')">Update</button>
+            <button onclick="showForm('delete-form')">Delete</button>
+            <button onclick="sortDatabase()">Sort</button>
+            <button onclick="showPrintModal()">Print/Export</button>
+            <button onclick="logout()">Logout</button>
+        </div>
+
+        <div id="add-form" class="form-container">
+            <h2>Add New Record</h2>
+            <div class="form-group">
+                <label for="add-badge">Badge No. (Format: AM-123456)</label>
+                <input type="text" id="add-badge" placeholder="AM-123456">
+            </div>
+            <div class="form-group">
+                <label>Badge Type</label>
+    <select id="add-badge-type">
+        <option value="">Select Badge Type</option>
+        <option value="OPENSLIP">OPENSLIP</option>
+        <option value="ZONE">ZONE</option>
+    </select>
+</div>
+<div class="form-group">
+  <label for="add-pic">Profile Picture</label>
+  <input type="file" id="add-pic" accept="image/*">
+</div>
+            <div class="form-group">
+                <label for="add-name">Name</label>
+                <input type="text" id="add-name" placeholder="Full Name">
+            </div>
+            <div class="form-group">
+                <label for="add-parent">Parent Name</label>
+                <input type="text" id="add-parent" placeholder="Parent's Full Name">
+            </div>
+            <div class="form-group">
+                <label for="add-gender">Gender</label>
+                <select id="add-gender">
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-phone">Phone</label>
+                <input type="text" id="add-phone" placeholder="10 digits" maxlength="10">
+            </div>
+            <div class="form-group">
+    <label for="add-birth">Birth Date</label>
+    <input type="text" id="add-birth" placeholder="dd-mm-yyyy">
+</div>
+            <div class="form-group">
+                <label for="add-address">Address</label>
+                <input type="text" id="add-address" placeholder="Full Address">
+            </div>
+            <button onclick="addRecord()">Save Record</button>
+            <button onclick="hideForms()">Cancel</button>
+        </div>
+
+        <div id="search-form" class="form-container">
+            <h2>Search Records</h2>
+            <div class="form-group">
+                <label>Search By:</label>
+                <select id="search-by">
+                    <option value="badge_no">Badge No.</option>
+                    <option value="name">Name</option>
+                    <option value="parent_name">Parent Name</option>
+                    <option value="phone">Phone</option>
+                    <option value="address">Address</option>
+                    <option value="age">Age</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="search-term">Search Term</label>
+                <input type="text" id="search-term" placeholder="Enter search term">
+            </div>
+            <button onclick="searchRecords()">Search</button>
+            <button onclick="hideForms()">Cancel</button>
+        </div>
+
+        <div id="update-form" class="form-container">
+    <h2>Update Record</h2>
+    <div class="form-group">
+        <label for="update-badge">Badge No. to find</label>
+        <input type="text" id="update-badge" placeholder="AM-123456">
+    </div>
+    <button onclick="findRecordToUpdate()">Find Record</button>
+    <button onclick="hideForms()">Cancel</button>
+    
+    <div id="update-record-form" style="display: none; margin-top: 20px;">
+        <h3>Update Details</h3>
+        <input type="hidden" id="update-original-badge-no">
+
+        <!-- ✅ Badge Type with OPENSLIP and ZONE -->
+        <div class="form-group">
+            <label>Badge Type:</label>
+            <select id="update-badge-type">
+                <option value="OPENSLIP">OPENSLIP</option>
+                <option value="ZONE">ZONE</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Badge No:</label>
+            <input type="text" id="update-badge-no">
+        </div>
+
+        <div class="form-group">
+  <label>Profile Picture:</label>
+  <input type="file" id="update-pic" accept="image/*">
+</div>
+
+
+        <div class="form-group">
+            <label>Name:</label>
+            <input type="text" id="update-name">
+        </div>
+
+        <div class="form-group">
+            <label>Parent Name:</label>
+            <input type="text" id="update-parent">
+        </div>
+
+        <div class="form-group">
+            <label>Gender:</label>
+            <select id="update-gender">
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Phone:</label>
+            <input type="text" id="update-phone">
+        </div>
+
+        <div class="form-group">
+    <label>Birth Date:</label>
+    <input type="text" id="update-birth" placeholder="dd-mm-yyyy">
+</div>
+
+
+        <div class="form-group">
+            <label>Address:</label>
+            <input type="text" id="update-address">
+        </div>
+
+        <button onclick="updateRecord()">Save Changes</button>
+    </div>
+</div>
+
+        <div id="delete-form" class="form-container">
+            <h2>Delete Record</h2>
+            <div class="form-group">
+                <label for="delete-badge">Badge No. to delete</label>
+                <input type="text" id="delete-badge" placeholder="AM-123456">
+            </div>
+            <button onclick="confirmDelete()">Delete Record</button>
+            <button onclick="hideForms()">Cancel</button>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="global-search" class="search-box" placeholder="Search all records...">
+            <select id="badge-type-filter">
+                <option value="">All Badge Types</option>
+                <option value="OPENSLIP">Open Slip</option>
+                <option value="ZONE">Zone</option>
+            </select>
+        </div>
+        
+        <div class="batch-actions">
+            <button onclick="selectAllByName()">Select by Name</button>
+            <button onclick="clearAllSelections()">Clear Selections</button>
+        </div>
+
+        <div class="table-container">
+            <table id="records-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                        <th>SR NO.</th>
+                        <th>BADGE TYPE</th>
+                        <th>BADGE NO.</th>
+                        <th>PIC</th>
+                        <th>NAME</th>
+                        <th>PARENT NAME</th>
+                        <th>GENDER</th>
+                        <th>PHONE</th>
+                        <th>BIRTH DATE</th>
+                        <th>AGE</th>
+                        <th>ADDRESS</th>
+                    </tr>
+                </thead>
+                <tbody id="records-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="print-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('print-modal')">&times;</span>
+            <h2>Print/Export Options</h2>
+            <div class="print-options">
+                <button class="scroll-to-options" onclick="scrollToOptions()">↓ Scroll to Options ↓</button>
+                <h4>Select Fields to Include:</h4>
+                <label><input type="checkbox" name="print-field" value="badge-type" checked> Badge Type</label>
+                <label><input type="checkbox" name="print-field" value="badge-no" checked> Badge No.</label>
+                <label><input type="checkbox" name="print-field" value="pic" checked> Picture</label> <!-- NEW PIC-->
+                <label><input type="checkbox" name="print-field" value="name" checked> Name</label>
+                <label><input type="checkbox" name="print-field" value="parent" checked> Parent Name</label>
+                <label><input type="checkbox" name="print-field" value="gender" checked> Gender</label>
+                <label><input type="checkbox" name="print-field" value="phone" checked> Phone</label>
+                <label><input type="checkbox" name="print-field" value="birth" checked> Birth Date</label>
+                <label><input type="checkbox" name="print-field" value="age" checked> Age</label>
+                <label><input type="checkbox" name="print-field" value="address" checked> Address</label>
+                <hr>
+                <h4>Records to Include:</h4>
+                <label><input type="radio" name="records-to-print" value="selected" checked> Selected Records</label>
+                <label><input type="radio" name="records-to-print" value="filtered"> All Filtered/Visible Records</label>
+                <label><input type="radio" name="records-to-print" value="all"> All Records in Database</label>
+            </div>
+            <div class="print-preview-container">
+                <div id="print-preview"></div>
+            </div>
+             <div class="modal-actions">
+                <button onclick="generatePrintPreview()">Generate Preview</button>
+                <button onclick="printPreview()" class="no-print">Print</button>
+                <div class="export-options">
+                    <button class="export-btn excel" onclick="exportToExcel()">Export to Excel</button>
+                    <button class="export-btn pdf" onclick="exportToPDF()">Export to PDF</button>
+                    <button class="export-btn image" onclick="exportToImage()">Export as Image</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="scroll-to-top" onclick="scrollToTop()">↑</button>
+
+    <script src="script.js"></script>
+</body>
+</html>
