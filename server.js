@@ -1,27 +1,24 @@
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-const multer = require('multer'); // Multer ko yahan require kiya gaya hai
+const multer = require('multer');
 
 const app = express();
 const port = 3000;
 
 // PostgreSQL database configuration
+// Render par DATABASE_URL environment variable ka istemal karein, aur local par fallback karein.
 const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "rssbdb",
-  password: "Amitpad@07",
-  port: 5432,
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Amitpad@07@localhost:5432/rssbdb',
 });
 
 // Multer storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/uploads/'); // Files is folder me save honge
+        cb(null, 'public/uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // Unique file name
+        cb(null, Date.now() + path.extname(file.originalname));
     }
 });
 const upload = multer({ storage: storage });
@@ -32,11 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
-
-// API endpoint to serve images from the 'public/image' directory
 app.use('/image', express.static(path.join(__dirname, 'public/image')));
-
-// API endpoint to serve uploaded images
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Login API
@@ -52,7 +45,7 @@ app.post('/api/login', async (req, res) => {
 // API to add a new record (with file upload middleware)
 app.post('/api/records', upload.single('pic'), async (req, res) => {
   const { badgeType, badgeNo, name, parent, gender, phone, birth, address } = req.body;
-  const pic = req.file ? `uploads/${req.file.filename}` : 'demo.png'; // File path save karna
+  const pic = req.file ? `uploads/${req.file.filename}` : 'demo.png';
   
   try {
     const result = await pool.query(
@@ -67,6 +60,32 @@ app.post('/api/records', upload.single('pic'), async (req, res) => {
   }
 });
 
+// API to get all records, with sorting
+app.get('/api/records', async (req, res) => {
+    const { sort, direction } = req.query;
+    let query = 'SELECT * FROM persons';
+    
+    if (sort) {
+        const validColumns = ['badge_no', 'name', 'birth_date'];
+        if (validColumns.includes(sort)) {
+            query += ` ORDER BY ${sort}`;
+            if (direction && ['ASC', 'DESC'].includes(direction.toUpperCase())) {
+                query += ` ${direction.toUpperCase()}`;
+            }
+        }
+    } else {
+        query += ` ORDER BY name ASC`; // Default sort
+    }
+    
+    try {
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching records:', err);
+        res.status(500).json({ success: false, message: 'Error fetching records' });
+    }
+});
+
 // API to update a record (with file upload middleware)
 app.put('/api/records/:originalBadgeNo', upload.single('pic'), async (req, res) => {
   const { originalBadgeNo } = req.params;
@@ -74,9 +93,9 @@ app.put('/api/records/:originalBadgeNo', upload.single('pic'), async (req, res) 
   
   let pic;
   if (req.file) {
-      pic = `uploads/${req.file.filename}`; // New picture's path
+      pic = `uploads/${req.file.filename}`;
   } else {
-      pic = req.body.pic; // Use the existing picture path from the hidden field
+      pic = req.body.pic;
   }
 
   try {
@@ -96,32 +115,23 @@ app.put('/api/records/:originalBadgeNo', upload.single('pic'), async (req, res) 
   }
 });
 
-// Other endpoints (get, search, delete) remain the same
-app.get('/api/records', async (req, res) => {
-    const { sort, direction } = req.query;
-    let query = 'SELECT * FROM persons';
-    
-    if (sort) {
-        const validColumns = ['badge_no', 'name', 'birth_date'];
-        if (validColumns.includes(sort)) {
-            query += ` ORDER BY ${sort}`;
-            if (direction && ['ASC', 'DESC'].includes(direction.toUpperCase())) {
-                query += ` ${direction.toUpperCase()}`;
-            }
-        }
+// API to delete a record
+app.delete('/api/records/:badgeNo', async (req, res) => {
+  const { badgeNo } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM persons WHERE badge_no = $1 RETURNING *', [badgeNo]);
+    if (result.rows.length > 0) {
+      res.json({ success: true, message: 'Record deleted successfully' });
     } else {
-        query += ` ORDER BY name ASC`;
+      res.status(404).json({ success: false, message: 'Record not found' });
     }
-    
-    try {
-        const result = await pool.query(query);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching records:', err);
-        res.status(500).json({ success: false, message: 'Error fetching records' });
-    }
+  } catch (err) {
+    console.error('Error deleting record:', err);
+    res.status(500).json({ success: false, message: 'Error deleting record' });
+  }
 });
 
+// API to search for records
 app.get('/api/search', async (req, res) => {
   const { searchBy, searchTerm } = req.query;
   let query = 'SELECT * FROM persons WHERE ';
@@ -147,36 +157,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-app.get('/api/records/:badgeNo', async (req, res) => {
-  const { badgeNo } = req.params;
-  try {
-    const result = await pool.query('SELECT * FROM persons WHERE badge_no = $1', [badgeNo]);
-    if (result.rows.length > 0) {
-      res.json({ success: true, record: result.rows[0] });
-    } else {
-      res.status(404).json({ success: false, message: 'Record not found' });
-    }
-  } catch (err) {
-    console.error('Error finding record:', err);
-    res.status(500).json({ success: false, message: 'Error finding record' });
-  }
-});
-
-app.delete('/api/records/:badgeNo', async (req, res) => {
-  const { badgeNo } = req.params;
-  try {
-    const result = await pool.query('DELETE FROM persons WHERE badge_no = $1 RETURNING *', [badgeNo]);
-    if (result.rows.length > 0) {
-      res.json({ success: true, message: 'Record deleted successfully' });
-    } else {
-      res.status(404).json({ success: false, message: 'Record not found' });
-    }
-  } catch (err) {
-    console.error('Error deleting record:', err);
-    res.status(500).json({ success: false, message: 'Error deleting record' });
-  }
-});
-
+// Start the server
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
