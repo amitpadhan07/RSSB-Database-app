@@ -1,3 +1,4 @@
+const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
 // INITIAL DATABASE
 const database = {
     records: [],
@@ -23,7 +24,8 @@ function initDemoPics() {
 // Returns a promise so other functions can wait for it
 async function initializeDatabase() {
     try {
-        const response = await fetch('/api/records');
+        
+const response = await fetch(`${BASE_URL}/api/records`);
         if (!response.ok) {
             throw new Error('Failed to fetch records from the server.');
         }
@@ -51,7 +53,7 @@ async function login() {
     const password = document.getElementById("password").value;
 
     try {
-        const response = await fetch('/api/login', {
+        const response = await fetch(`${BASE_URL}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
@@ -61,7 +63,6 @@ async function login() {
         if (result.success) {
             document.getElementById("login-screen").style.display = "none";
             document.querySelector(".container").style.display = "block";
-            // Login successful hone ke baad saare records load karein
             await initializeDatabase();
             alert("Login successful!");
         } else {
@@ -142,9 +143,11 @@ function formatBadgeNumber(inputId) {
 }
 
 
-// ------------ADD RECORD-------------
 async function addRecord() {
-   
+    if (!window.databaseReady) {
+        alert('Database is not ready yet. Please wait a moment.');
+        return;
+    }
 
     const badgeType = document.getElementById('add-badge-type').value.trim().toUpperCase();
     const badgeNo = document.getElementById('add-badge').value.trim().toUpperCase();
@@ -185,7 +188,7 @@ async function addRecord() {
     }
 
     try {
-        const response = await fetch('/api/records', {
+        const response = await fetch(`${BASE_URL}/api/records`, {
             method: 'POST',
             body: formData,
         });
@@ -287,7 +290,10 @@ async function findRecordToUpdate() {
 // ---------- Update record ----------
 async function updateRecord() {
     try {
-        
+        if (!window.databaseReady) {
+            alert('Database is not ready yet. Please wait a moment.');
+            return;
+        }
 
         const originalBadgeNo = document.getElementById('update-original-badge-no')?.value;
         if (!originalBadgeNo) {
@@ -340,7 +346,7 @@ async function updateRecord() {
         }
 
         try {
-            const response = await fetch(`/api/records/${originalBadgeNo}`, {
+            const response = await fetch(`${BASE_URL}/api/records/${originalBadgeNo}`, {
                 method: 'PUT',
                 body: formData,
             });
@@ -413,39 +419,27 @@ function validateDOB(dob) {
 
 // ---------- Delete record ----------
 async function confirmDelete() {
-    // Check if the DOM is fully loaded and database is ready
-    
+    if (!window.databaseReady) {
+        return alert('Database is not ready yet. Please wait a moment.');
+    }
 
     const badgeNoEl = document.getElementById('delete-badge');
     if (!badgeNoEl) return alert('Delete badge input not found.');
 
     const badgeNo = badgeNoEl.value.trim().toUpperCase();
 
-    // Check if the record exists locally before sending to backend
-    if (!database.records.some(r => (r.badge_no || '').toUpperCase() === badgeNo)) {
-        alert('Record not found!');
-        return;
-    }
-
     if (confirm(`Are you sure you want to delete record for ${badgeNo}?`)) {
         try {
-            // Send a DELETE request to your backend API
-            const response = await fetch(`/api/records/${badgeNo}`, {
-                method: 'DELETE',
-            });
-
+            const response = await fetch(`${BASE_URL}/api/records/${badgeNo}`, { method: 'DELETE' });
             if (response.status === 404) {
                 alert('Record not found on server.');
                 return;
             }
-
             const result = await response.json();
             
             if (result.success) {
-                // Success hone par, backend se saare records dobara fetch karein
-                await initializeDatabase(); 
-                database.selectedRecords.delete(badgeNo); // local selection ko update karein
-                
+                await initializeDatabase();
+                database.selectedRecords.delete(badgeNo);
                 alert('Record deleted successfully!');
                 hideForms();
                 badgeNoEl.value = '';
@@ -471,25 +465,18 @@ function hideForms() {
 // --- DATA MANAGEMENT & FILTERING ---
 async function showAllRecords() {
     try {
-        // Backend se saare records fetch karein
-        const response = await fetch('/api/records');
+        const response = await fetch(`${BASE_URL}/api/records`);
         if (!response.ok) {
             throw new Error('Failed to fetch records from the server.');
         }
-        
         const records = await response.json();
-
-        // Local database ko update karein
         database.records = records;
         database.filteredRecords = records;
         
-        // Frontend ko reset karein
         document.getElementById('global-search').value = '';
         document.getElementById('badge-type-filter').value = '';
         
-        // Table ko update karein
         updateTable();
-        
         alert('Showing all records.');
 
     } catch (error) {
@@ -517,29 +504,23 @@ function formatDateDDMMYYYY(dateString) {
 async function searchRecords() {
     try {
         const searchByRaw = document.getElementById('search-by')?.value;
-        const searchTerm = document.getElementById('search-term')?.value.trim(); // searchTerm ko uppercase backend me kiya jayega
+        const searchTerm = document.getElementById('search-term')?.value.trim();
 
         if (!searchByRaw) return alert('Please select a search field!');
         if (!searchTerm) return alert('Please enter a search term!');
 
         const searchBy = searchByRaw.trim().toLowerCase();
 
-        // Backend API ko call karein search parameters ke saath
-        const response = await fetch(`/api/search?searchBy=${searchBy}&searchTerm=${encodeURIComponent(searchTerm)}`);
+        const response = await fetch(`${BASE_URL}/api/search?searchBy=${searchBy}&searchTerm=${encodeURIComponent(searchTerm)}`);
 
         if (!response.ok) {
             throw new Error('Failed to fetch search results from the server.');
         }
 
         const records = await response.json();
-
-        // Local database ko update karein
         database.filteredRecords = records;
         
-        // Forms ko chhipayein
         if (typeof hideForms === 'function') hideForms();
-
-        // Table ko update karein
         if (typeof updateTable === 'function') updateTable();
 
         alert(`Found ${database.filteredRecords.length} record(s).`);
@@ -558,7 +539,7 @@ async function sortDatabase() {
     }
 
     let orderByColumn = '';
-    let direction = 'ASC'; // Default sort direction ascending
+    let direction = 'ASC';
     
     switch(sortBy) {
         case '1':
@@ -576,9 +557,8 @@ async function sortDatabase() {
     }
 
     try {
-        const response = await fetch(`/api/records?sort=${orderByColumn}&direction=${direction}`);
+        const response = await fetch(`${BASE_URL}/api/records?sort=${orderByColumn}&direction=${direction}`);
         const records = await response.json();
-
         database.records = records;
         database.filteredRecords = records;
         updateTable();
