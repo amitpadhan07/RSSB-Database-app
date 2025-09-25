@@ -49,8 +49,7 @@ app.post('/api/records', upload.single('pic'), async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO persons (badge_type, badge_no, pic, name, parent_name, gender, phone, birth_date, address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO persons (badge_type, badge_no, pic, name, parent_name, gender, phone, birth_date, address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [badgeType, badgeNo, pic, name, parent, gender, phone, birth, address]
     );
     res.status(201).json({ success: true, record: result.rows[0] });
