@@ -144,10 +144,7 @@ function formatBadgeNumber(inputId) {
 
 
 async function addRecord() {
-    if (!window.databaseReady) {
-        alert('Database is not ready yet. Please wait a moment.');
-        return;
-    }
+
 
     const badgeType = document.getElementById('add-badge-type').value.trim().toUpperCase();
     const badgeNo = document.getElementById('add-badge').value.trim().toUpperCase();
@@ -290,10 +287,6 @@ async function findRecordToUpdate() {
 // ---------- Update record ----------
 async function updateRecord() {
     try {
-        if (!window.databaseReady) {
-            alert('Database is not ready yet. Please wait a moment.');
-            return;
-        }
 
         const originalBadgeNo = document.getElementById('update-original-badge-no')?.value;
         if (!originalBadgeNo) {
@@ -419,10 +412,6 @@ function validateDOB(dob) {
 
 // ---------- Delete record ----------
 async function confirmDelete() {
-    if (!window.databaseReady) {
-        return alert('Database is not ready yet. Please wait a moment.');
-    }
-
     const badgeNoEl = document.getElementById('delete-badge');
     if (!badgeNoEl) return alert('Delete badge input not found.');
 
