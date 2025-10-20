@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const API_BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com'; 
+const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com'; 
 
 // Global user object update karein
 var CURRENT_USER = {}; 
