@@ -5,7 +5,9 @@ const multer = require('multer');
 const cors = require('cors'); 
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+// Note: We are using '0.0.0.0' for the host
+const HOST = '0.0.0.0';
 
 // Yahaan aapka external database URL hai
 const EXTERNAL_DB_URL = 'postgresql://rssbdb_live_user:RFfTQR5KemUNzHnG5RhAlvitl88AxBBK@dpg-d3aif0adbo4c738s7g00-a.oregon-postgres.render.com/rssbdb_live';
@@ -599,6 +601,8 @@ app.get('/api/request/:requestId', async (req, res) => {
     }
 });
 // Start the server
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+app.listen(PORT, HOST, () => {
+    // You can still log the port, but logging the host is better for debugging
+    console.log(`Server is running on http://${HOST}:${PORT}`); 
+    console.log('Server is ready for Render traffic!');
 });
