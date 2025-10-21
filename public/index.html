@@ -25,7 +25,6 @@
         <input id="username" placeholder="Username">
         <input id="password" type="password" placeholder="Password">
         <button onclick="login()">Login</button>
-        <p>Default: <b>admin / 1234</b></p>
       </div>
     </div>
 
@@ -174,28 +173,123 @@
         </div>
             </section>
 
-            <section id="manage-users-section" style="display:none;">
-                <h2>Manage Users</h2>
-                <nav class="sub-menu">
-                    <button id="add-user-btn">Add New User</button>
-                    <button id="manage-password-btn">Manage Password Resets</button>
-                    <button id="view-logs-btn">View Logs</button>
-                </nav>
-                <div id="manage-users-content">
-                    <section id="add-user-section" style="display:none;">
-                        <h3>Add New User</h3>
-                        <div id="add-user-form-container"></div>
-                    </section>
-                    <section id="manage-password-section" style="display:none;">
-                        <h3>Manage Password Resets</h3>
-                        <div id="password-requests-container"></div>
-                    </section>
+            <section id="manage-users-section" style="display: none;">
+    <h2>Admin Control: User & System Management ⚙️</h2>
+    
+    <div class="sub-nav-tabs">
+        <button class="tab-button" onclick="showUserSubSection('view-users-list-section'); viewAllUsers();">View All Users</button>
+        <button class="tab-button" onclick="showUserSubSection('add-user-section');">Add New User</button>
+        <button class="tab-button" onclick="showUserSubSection('manage-password-section');">Reset User Password</button>
+        <button class="tab-button" onclick="showUserSubSection('view-logs-section'); viewLogs();">View Audit Logs</button>
+    </div>
+
+    <div id="manage-users-content" style="padding-top: 20px;">
+        
+        <section id="view-users-list-section" style="display: block;">
+            <h3>System User List (Update Role / Status)</h3>
+            <div id="users-list-container" class="table-container">
+                <p>Loading user list...</p>
+            </div>
+        </section>
+
+        <section id="add-user-section" style="display: none;">
+    <h3>Add New System User</h3>
+    <form id="add-user-form" onsubmit="event.preventDefault(); adminAddUser();">
+        <div class="form-group">
+            <label for="add-user-badge">Link Member Badge No:</label>
+            <input 
+                type="text" 
+                id="add-user-badge" 
+                placeholder="AM-123456" 
+                onblur="formatBadgeNumber('add-user-badge')" 
+                required>
+        </div>
+        <div class="form-group">
+            <label for="add-user-email">Email:</label>
+            <input type="email" id="add-user-email" required>
+        </div>
+        <div class="form-group">
+            <label for="add-user-username">Username (e.g., U007):</label>
+            <input type="text" id="add-user-username" required>
+        </div>
+        <div class="form-group">
+            <label for="add-user-password">Password:</label>
+            <input type="password" id="add-user-password" required minlength="6">
+        </div>
+        <div class="form-group">
+            <label for="add-user-role">User Role:</label>
+            <select id="add-user-role" required>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn-primary">Add User</button>
+    </form>
+</section>
+
+<section id="user-account-detail-section" style="display: none; padding: 20px;">
+    </section>
+                
+
+        <section id="manage-password-section" style="display: none;">
+            <h3>Reset Any User's Password</h3>
+            <form id="reset-password-form" onsubmit="event.preventDefault(); adminResetPassword();">
+                <div class="form-group">
+                    <label for="reset-username">Target Username:</label>
+                    <input type="text" id="reset-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="reset-new-password">New Password:</label>
+                    <input type="password" id="reset-new-password" required minlength="6">
+                </div>
+                <button type="submit" class="btn-primary btn-warning">Force Reset Password</button>
+            </form>
+        </section>
+
+        <section id="view-logs-section" style="display: none;">
+            <h3>System Audit Logs</h3>
+            <div class="log-filters" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <input type="text" id="log-filter-user" placeholder="Filter by Username" onkeyup="viewLogs()">
+                <select id="log-filter-action" onchange="viewLogs()">
+                    <option value="">All Actions</option>
+                    <option value="LOGIN">Login</option>
+                    <option value="ADD">Add Record</option>
+                    <option value="UPDATE">Update Record</option>
+                    <option value="DELETE">Delete Record</option>
+                    <option value="APPROVE">Approval</option>
+                    <option value="REJECT">Rejection</option>
+                    <option value="PASSWORD_RESET">Password Reset</option>
+                </select>
+                <button onclick="refreshLogs()" class="btn-secondary">Refresh Logs</button>
+            </div>
+            <div id="logs-list-container" class="table-container">
+                <p>Logs will load here.</p>
+            </div>
+        </section>
+        
+    </div>
+</section>
                     <section id="view-logs-section" style="display:none;">
-                        <h3>View Logs</h3>
-                        <div id="logs-container"></div>
-                    </section>
-                </div>
-            </section>
+    <h2>System Audit Logs</h2>
+    <div class="log-filters" style="margin-bottom: 20px;">
+        <input type="text" id="log-filter-user" placeholder="Filter by Username" onkeyup="viewLogs()">
+        <select id="log-filter-action" onchange="viewLogs()">
+            <option value="">All Actions</option>
+            <option value="LOGIN">Login</option>
+            <option value="ADD">Add Record</option>
+            <option value="UPDATE">Update Record</option>
+            <option value="DELETE">Delete Record</option>
+            <option value="APPROVE">Approval</option>
+            <option value="REJECT">Rejection</option>
+            <option value="PASSWORD_RESET">Password Reset</option>
+        </select>
+        <button onclick="refreshLogs()">Refresh Logs</button>
+    </div>
+    <div id="logs-list-container">
+        // Logs table yahan load hogi
+    </div>
+</section>
                    
         </main>
             </div>

@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com'; 
+const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
 
 // Global user object update karein
 var CURRENT_USER = {}; 
@@ -218,8 +218,19 @@ function showAdminSection(sectionId) {
         loadPendingRequests(); 
     }
 
-    if (sectionId !== 'manage-users-section') {
+    // Naya logic yahan add karein:
+    if (sectionId === 'manage-users-section') {
+        // Default: Add User section open rakhte hain, ya ek naya 'view-users' section bana sakte ho.
+        // Hum maan rahe hain ki Manage Users button click karne par default 'view-users-list' section khulega.
+        const defaultUserSection = document.getElementById('view-users-list-section');
+        
+        // Ensure only one sub-section is visible on first click:
         document.querySelectorAll('#manage-users-content section').forEach(sec => sec.style.display = 'none');
+        
+        if (defaultUserSection) {
+            defaultUserSection.style.display = 'block';
+            viewAllUsers(); // Tab khulte hi user list load karein
+        }
     }
 }
 
@@ -271,6 +282,450 @@ function setupDashboardListeners() {
     document.getElementById('user-manage-requests-btn')?.addEventListener('click', () => showUserSection('user-requests-section'));
 }
 
+// -------------------- USER ACCOUNT MANAGEMENT (ADMIN SECTION) --------------------
+
+// 1.1: ADMIN ADD NEW USER (Existing, for context)
+async function adminAddUser() {
+    const badgeNo = document.getElementById('add-user-badge').value.trim().toUpperCase();
+    const username = document.getElementById('add-user-username').value.trim();
+    const password = document.getElementById('add-user-password').value.trim();
+    const role = document.getElementById('add-user-role').value;
+    const addedBy = CURRENT_USER.username || 'ADMIN_DIRECT';
+    const email = document.getElementById('add-user-email').value.trim();
+    
+if (!badgeNo || !username || !password || !role) {
+        return alert('All fields are required.');
+    }
+   if (!badgeNo || !username || !password || !role || !email) {
+        return alert('All fields including Email are required.');
+    }
+    if (password.length < 6) return alert('Password kam se kam 6 characters ka hona chahiye.');
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ username, password, role, addedBy, badgeNo, email }) 
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+        alert(`User '${username}' added successfully!`);
+        
+        // 🛑 FIX 1: Optional Chaining ka use karke form reset karein
+        document.getElementById('add-user-form')?.reset();
+        
+        // 🛑 FIX 2: User ko list view par redirect karein
+        // Isse woh 'Add User' screen se hatkar 'View All Users' list par chala jayega.
+        if (typeof showUserSubSection === 'function') {
+            showUserSubSection('view-users-list-section');
+        }
+        
+        // 🛑 FIX 3: List ko refresh karein
+        if (typeof viewAllUsers === 'function') {
+            viewAllUsers();
+        }
+        
+    } else {
+        alert(result.message);
+    }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        alert('Server se connectivity mein galti aayi. Check console.');
+    }
+}
+
+// 1.2, 2.3: VIEW ALL USERS + LAST LOGIN / STATUS
+// script.js - 1.2, 2.3: VIEW ALL USERS + LAST LOGIN / STATUS
+async function viewAllUsers() {
+    const container = document.getElementById('users-list-container');
+    if (!container) return console.error("User list container missing (#users-list-container).");
+
+    container.innerHTML = '<h2><i class="fa fa-spinner fa-spin"></i> Loading Users...</h2>';
+
+    try {
+        // API call to fetch all users
+        const response = await fetch(`${BASE_URL}/api/users/all`);
+        if (!response.ok) throw new Error('Failed to fetch user list.');
+
+        const users = await response.json();
+
+        if (users.length === 0) {
+            container.innerHTML = '<h2>No users found in the system.</h2>';
+            return;
+        }
+
+        let tableHTML = `
+           <table class="users-table wide-table" style="min-width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th style="min-width: 150px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        users.forEach(user => {
+            const statusText = user.is_active ? 'Active' : 'Disabled';
+            const statusClass = user.is_active ? 'status-active' : 'status-disabled';
+            const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString('en-IN', { timeStyle: 'short', dateStyle: 'short' }) : 'Never';
+            
+            const isCurrentUser = user.username === CURRENT_USER.username;
+
+            tableHTML += `
+                <tr>
+                    
+                    <td>${user.name || 'N/A'}</td>
+                    <td>${user.username}</td>  <td>
+                        <select id="role-select-${user.username}" onchange="updateUserRole('${user.username}', this.value)" ${isCurrentUser ? 'disabled' : ''}>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                            <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                        </select>
+                    </td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td>${lastLogin}</td>
+                    <td>
+                        ${isCurrentUser ? '<span style="color: gray;">(Current User)</span>' : 
+                        `
+                            <button onclick="viewUserDetails('${user.username}')" class="btn-secondary" style="margin-bottom: 5px;">
+                                View Details
+                            </button>
+                            <button onclick="deleteUser('${user.username}', ${user.is_active})" class="${user.is_active ? 'btn-disable' : 'btn-enable'}">
+                                ${user.is_active ? 'Disable' : 'Enable'}
+                            </button>
+                            <button onclick="permanentlyDeleteUser('${user.username}')" class="btn-delete" title="Permanent Delete">
+                                Delete
+                            </button>
+                        `}
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHTML += '</tbody></table>';
+        container.innerHTML = tableHTML;
+
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        container.innerHTML = `<h2>Error loading user list. Check console.</h2>`;
+    }
+}
+
+
+// 1.2.1 🛑 NEW: Function for Permanent Deletion (CRITICAL ACTION)
+async function permanentlyDeleteUser(targetUsername) {
+    if (!confirm(`WARNING: Are you sure you want to PERMANENTLY DELETE user ${targetUsername}? This action cannot be undone and will remove all their logs/requests.`)) {
+        return;
+    }
+    
+    // Final warning for high-security action
+    const finalConfirm = prompt(`TYPE the username "${targetUsername}" to confirm permanent deletion:`);
+    if (finalConfirm !== targetUsername) {
+        return alert("Deletion cancelled. Username did not match.");
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/delete-permanent`, {
+            method: 'DELETE', // DELETE method use kiya
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUsername, deletedBy: CURRENT_USER.username })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`User ${targetUsername} permanently deleted!`);
+            viewAllUsers(); // List refresh karein
+        } else {
+            alert(`Deletion failed: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error during permanent deletion:', error);
+        alert('Network error during permanent deletion.');
+    }
+}
+
+// 1.3: EDIT / UPDATE ROLE
+async function updateUserRole(targetUsername, newRole) {
+    if (!confirm(`Confirm: Change role of user ${targetUsername} to ${newRole}?`)) {
+        // Agar user cancel karta hai, toh dropdown ko purane value par reset karein
+        viewAllUsers(); 
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/update-role`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUsername, newRole, updatedBy: CURRENT_USER.username })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`Role of ${targetUsername} successfully updated to ${newRole}!`);
+            viewAllUsers(); // List refresh karein
+        } else {
+            alert(`Role update mein galti: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error updating role:', error);
+        alert('Role update karte samay network error aaya.');
+    }
+}
+
+// 1.4: DISABLE / ENABLE USER (Permanent Delete se behtar hai disable karna)
+async function deleteUser(targetUsername, isCurrentlyActive) {
+    const action = isCurrentlyActive ? 'DISABLE' : 'ENABLE';
+    
+    if (!confirm(`Confirm: ${action} user ${targetUsername}?`)) return;
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/toggle-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUsername, isActive: !isCurrentlyActive, updatedBy: CURRENT_USER.username })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`User ${targetUsername} successfully ${action}D!`);
+            viewAllUsers(); // List refresh karein
+        } else {
+            alert(`${action} karne mein galti: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error disabling/enabling user:', error);
+        alert('Network error during user status change.');
+    }
+}
+
+// 1.5: ADMIN PASSWORD RESET (Existing, for context)
+async function adminResetPassword() {
+    const targetUsername = document.getElementById('reset-username').value.trim();
+    const newPassword = document.getElementById('reset-new-password').value.trim();
+    const resetBy = CURRENT_USER.username || 'ADMIN_DIRECT';
+
+    if (!targetUsername || !newPassword) return alert('Username aur New Password zaroori hain.');
+    if (newPassword.length < 6) return alert('Naya Password kam se kam 6 characters ka hona chahiye.');
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUsername, newPassword, resetBy })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`Password for user '${targetUsername}' successfully reset!`);
+            document.getElementById('reset-password-form').reset();
+        } else {
+            alert(`Password reset karne mein galti: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error resetting password:', error);
+        alert('Server se connectivity mein galti aayi. Check console.');
+    }
+}
+
+//1.6 - New Function to show User Account Details
+async function viewUserDetails(username) {
+    if (!username) return alert("Error: Username missing.");
+
+    const listSection = document.getElementById('view-users-list-section');
+    const detailSection = document.getElementById('user-account-detail-section');
+    
+    // UI State Switch: List chhipao, Detail section dikhao
+    listSection.style.display = 'none';
+    detailSection.style.display = 'block';
+    
+    detailSection.innerHTML = '<h2>Loading User Details...</h2>'; 
+
+    try {
+        // Backend API call to fetch a single user's complete data
+        const response = await fetch(`${BASE_URL}/api/user/${username}`); 
+        if (!response.ok) throw new Error('User details not found.');
+        
+        const user = await response.json();
+        
+        // Pic URL ko theek kiya, taaki agar sirf file ka naam ho toh BASE_URL use ho
+        const userPicUrl = user.pic && user.pic.startsWith('http') ? user.pic : `${BASE_URL}/${user.pic}`;
+        // Default pic agar user.pic null/undefined ho
+        const finalPicSrc = user.pic ? userPicUrl : 'demo.png'; 
+
+        // 🛑 FIX: Inline Styling aur Layout aapki image jaisa
+        detailSection.innerHTML = `
+            <button onclick="goBackToUserList()" style="float:right; margin-bottom: 20px;">Go Back</button>
+            
+            <div style="
+                border: 2px solid #5cb85c; 
+                padding: 20px; 
+                max-width: 400px; 
+                background-color: #f9fff9; 
+                border-radius: 5px;
+                color: #333;
+                box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            ">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #5cb85c; padding-bottom: 10px; color: #333;">
+                    Account Details
+                </h3>
+
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <p style="margin: 0; font-weight: bold;">Picture:</p>
+                    <img src="${finalPicSrc}" alt="${user.name} Profile Pic" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; margin-top: 5px;">
+                </div>
+
+                <p><strong>Username:</strong> ${user.username}</p>
+                <p><strong>Name:</strong> ${user.name || 'N/A'}</p>
+                <p><strong>Role:</strong> ${user.role}</p>
+                <p><strong>Status:</strong> <span style="color: ${user.is_active ? 'green' : 'red'}; font-weight: bold;">${user.is_active ? 'Active' : 'Disabled'}</span></p>
+                <hr style="border: 0; border-top: 1px dashed #ccc;">
+                
+                <p><strong>Badge No:</strong> ${user.badge_no || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
+                <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                <p><strong>Address:</strong> ${user.address || 'N/A'}</p>
+                <p><strong>Last Login:</strong> ${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</p>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error('Error fetching user details:', error);
+        detailSection.innerHTML = `
+            <h2>Error loading details.</h2>
+            <p style="color: red;">${error.message}</p>
+            <button onclick="goBackToUserList()">Go Back</button>
+        `;
+    }
+}
+
+//1.7 Function to handle switching between sub-sections within Manage Users
+function showUserSubSection(sectionId) {
+    // Manage Users ke sabhi inner sections ko select karein
+    const sections = document.querySelectorAll('#manage-users-content section');
+    sections.forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    // Requested section ko show karein
+    const requestedSection = document.getElementById(sectionId);
+    if (requestedSection) {
+        requestedSection.style.display = 'block';
+    }
+}
+
+// Function to go back from the detail view
+function goBackToUserList() {
+    // Current section ko hide karo
+    document.getElementById('user-account-detail-section').style.display = 'none';
+    // User List section ko wapas show karo
+    document.getElementById('view-users-list-section').style.display = 'block'; 
+}
+// -------------------- LOGGING SYSTEM (ADMIN) --------------------
+
+// Global variable to hold logs data for filtering
+let ALL_SYSTEM_LOGS = []; 
+
+// Main function to fetch and display logs
+async function viewLogs() {
+    const container = document.getElementById('logs-list-container');
+    const filterUser = document.getElementById('log-filter-user')?.value.trim().toUpperCase() || '';
+    const filterAction = document.getElementById('log-filter-action')?.value.toUpperCase() || '';
+    
+    if (!container) return console.error("Logs container missing (#logs-list-container).");
+
+    container.innerHTML = '<h2><i class="fa fa-spinner fa-spin"></i> Loading System Logs...</h2>';
+
+    try {
+        // 1. Fetch data only if not already loaded (simple caching)
+        if (ALL_SYSTEM_LOGS.length === 0) {
+            // Humne server-side filtering ko client-side mein shift kiya hai, so we fetch ALL
+            const response = await fetch(`${BASE_URL}/api/logs`); 
+            if (!response.ok) throw new Error('Failed to fetch logs.');
+            ALL_SYSTEM_LOGS = await response.json();
+            
+            // NOTE: Agar server-side filtering band karke simple SELECT * FROM logs ORDER BY... kar diya hai,
+            //       toh yeh caching method theek kaam karega.
+        }
+        
+        // 2. Apply Filtering (on the client-side for simplicity)
+        const filteredLogs = ALL_SYSTEM_LOGS.filter(log => {
+            // 🛑 FIX 1: log.actor_user ko log.actor_username se badla gaya hai
+            const matchesUser = log.actor_username && log.actor_username.toUpperCase().includes(filterUser);
+            const matchesAction = filterAction === '' || log.action_type.toUpperCase() === filterAction;
+            return matchesUser && matchesAction;
+        });
+
+        // 3. Render the filtered logs
+        renderLogsTable(filteredLogs, container);
+
+    } catch (error) {
+        console.error('Error fetching logs:', error);
+        container.innerHTML = `<h2>Error loading logs. Check console.</h2>`;
+    }
+}
+
+// Helper function to render the logs table
+function renderLogsTable(logs, container) {
+    if (logs.length === 0) {
+        container.innerHTML = '<h2>No log entries found matching the criteria.</h2>';
+        return;
+    }
+
+    let tableHTML = `
+        <table class="logs-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action Type</th>
+                    <th>Description</th>
+                    <th>Tracking ID</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    logs.forEach(log => {
+        // 🛑 FIX 2: log.timestamp ko log.log_timestamp se badla gaya hai
+        const logDate = new Date(log.log_timestamp).toLocaleString('en-IN', {
+            dateStyle: 'short',
+            timeStyle: 'medium'
+        });
+
+        tableHTML += `
+            <tr>
+                <td>${logDate}</td>
+                
+                <td>${log.actor_username || 'SYSTEM'}</td> 
+                
+                <td><span class="log-type log-type-${log.action_type ? log.action_type.toLowerCase().replace(/ /g, '-') : 'other'}">${log.action_type || 'N/A'}</span></td>
+                
+                <td>${log.submission_reason || 'N/A'}</td> 
+                
+                <td>${log.tracking_id || 'N/A'}</td>
+            </tr>
+        `;
+    });
+
+    tableHTML += '</tbody></table>';
+    container.innerHTML = tableHTML;
+}
+
+// Function to refresh logs (clears cache and fetches again)
+function refreshLogs() {
+    ALL_SYSTEM_LOGS = []; // Clear cache
+    viewLogs(); // Re-run the main function
+}
 
 // -------------------- APPROVAL HELPERS --------------------
 
@@ -1281,7 +1736,7 @@ async function viewRequestDetails(requestId) {
     }
 }
 
-// Function to render the fetched data into HTML
+// script.js - Updated renderRequestDetails function with Flexible Side-by-Side View
 
 function renderRequestDetails(request, originalRecord, container) {
     const requestedData = request.requested_data; 
@@ -1296,84 +1751,126 @@ function renderRequestDetails(request, originalRecord, container) {
     const originalExists = originalRecord && originalRecord.badge_no;
 
     // Date/Time Formatting
-    const formattedDate = formatDateDDMMYYYY(request.submission_timestamp);
-    const dateString = String(request.submission_timestamp).replace(' ', 'T');
-    const dateObj = new Date(dateString);
-    const formattedTime = isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-    const submittedTime = formattedDate === '' ? 'N/A' : `${formattedDate} ${formattedTime}`;
+    const submittedTime = new Date(request.submission_timestamp).toLocaleString();
 
-
-    // Helper function to compare and highlight differences
+    // Helper functions (Highlight, getOriginalValue, getPicSrc)
     const highlight = (originalVal, requestedVal) => {
-        // Highlighting only applies if it's an UPDATE request AND values are different.
-        if (!isUpdate || originalVal === requestedVal) {
-            return requestedVal || 'N/A';
+        if (!isUpdate) return requestedVal || 'N/A';
+        const originalString = String(originalVal || '');
+        const requestedString = String(requestedVal || '');
+        
+        if (originalString !== requestedString) {
+            return `<span style="color:red; font-weight:bold;">${requestedString || 'Empty'}</span>`;
         }
-        if (originalVal !== requestedVal) {
-            return `<span style="color:red; font-weight:bold;">${requestedVal || 'Empty'}</span>`;
-        }
-        return requestedVal || 'N/A';
+        return requestedString || 'N/A';
     };
 
-    // Original Column ki value nikalne ka tareeka
     const getOriginalValue = (key) => {
         if (!originalExists || isAdd || isDelete) return 'N/A';
-        const value = originalRecord[key];
-        return value || 'N/A';
+        if (key === 'birth_date') return formatDateDDMMYYYY(originalRecord[key]);
+        return originalRecord[key] || 'N/A';
     };
-
-    const requestedName = requestedData.name || 'N/A';
     
+    const getPicSrc = (data) => {
+        const picPath = data?.pic;
+        if (!picPath) return 'demo.png';
+        return picPath.startsWith('http') ? picPath : `${BASE_URL}/${picPath}`;
+    };
+    
+    // Color scheme setup
+    const mainBoxBorderColor = isDelete ? 'red' : (isUpdate ? 'red' : 'green');
+    const mainBoxBgColor = isDelete ? '#fff0f0' : (isUpdate ? '#fff0f0' : '#f9fff9');
+    const mainBoxHeaderColor = isDelete ? 'red' : (isUpdate ? 'red' : 'green');
+
+
     container.innerHTML = `
-        <button onclick="loadPendingRequests()" style="float:right;">Back to List</button>
+        <button onclick="loadPendingRequests()" style="float:right; margin-bottom: 20px;">Back to List</button>
         <h2>Review: ${request.request_type} Request (${request.tracking_id})</h2>
-        <p><strong>Submitted By:</strong> ${request.requester_username} on ${submittedTime}</p>
+        <p style="margin-bottom: 20px;"><strong>Submitted By:</strong> ${request.requester_username} on ${submittedTime}</p>
         <hr>
         
-                ${isUpdate ? 
-                    // Sirf UPDATE ke liye Original data ke fields dikhao
-                    `
-                    <div style="display:flex; justify-content: space-between; gap: 20px;">
-             <div style="width: 48%; padding: 15px; border: 1px solid ${isUpdate ? 'green' : 'green'}; background-color: ${isUpdate ? '#f0fff0' : '#fff'};">
-                    <h3>Original Record (DATABASE COPY)</h3>
-                <p><strong>Badge No:</strong> ${request.target_badge_no}</p>
-                <p><strong>Picture:</strong> <img src="${originalExists ? originalRecord.pic : 'demo.png'}" style="width:50px; height:50px;"></p>
-                    <p><strong>Badge Type:</strong> ${getOriginalValue('badge_type')}</p>
+        <div style="
+            display: ${isUpdate ? 'flex' : 'block'}; 
+            justify-content: center; /* Changed from space-between to center for better visual balance on non-50/50 split */
+            gap: 20px; 
+            /* overflow-x: auto; - Removed to prevent scrollbar */
+            flex-wrap: nowrap; /* Hamesha side-by-side rakhega */
+            /* padding-bottom: 10px; - Removed unnecessary padding */
+        ">
+            
+            ${isUpdate ? 
+                // 1. ORIGINAL RECORD SECTION (Only for UPDATE)
+                `
+                <div style="
+                    /* 🛑 UPDATED: Flexible 50% width */
+                    flex-basis: 50%; /* Preferred width 50% */
+                    flex-grow: 1; /* Allow to grow if space is available (though not necessary here) */
+                    flex-shrink: 1; /* Allow to shrink if space is tight */
+                    min-width: 250px; /* Thoda kam minimum size set kiya */
+                    
+                    border: 2px solid green; 
+                    padding: 20px; 
+                    background-color: #f0fff0; 
+                    border-radius: 5px;
+                ">
+                    <h3 style="margin-top: 0; color: green; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                        Original Record (DATABASE)
+                    </h3>
+                    
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <p style="margin: 0; font-weight: bold;">Picture:</p>
+                        <img src="${getPicSrc(originalRecord)}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid green; margin-top: 5px;">
+                    </div>
+
+                    <p><strong>Badge No:</strong> ${request.target_badge_no}</p>
                     <p><strong>Name:</strong> ${getOriginalValue('name')}</p>
                     <p><strong>Parent Name:</strong> ${getOriginalValue('parent_name')}</p>
-                    <p><strong>Gender:</strong> ${getOriginalValue('gender')}</p>
                     <p><strong>Phone:</strong> ${getOriginalValue('phone')}</p>
-                    <p><strong>Birth Date:</strong> ${formatDateDDMMYYYY(getOriginalValue('birth_date'))}</p>
                     <p><strong>Address:</strong> ${getOriginalValue('address')}</p>
-                    `
-                    : ''
-                }
-            </div>
+                    <p><strong>Birth Date:</strong> ${getOriginalValue('birth_date')}</p>
+                </div>
+                `
+                : ''
+            }
 
-            <div style="width: 48%; padding: 15px; border: 1px solid ${isUpdate ? 'red' : 'green'}; background-color: ${isUpdate ? '#fef0f0' : '#f0fff0'};">
-                <h3>Requested Data (${request.request_type})</h3>
+            <div style="
+                /* 🛑 UPDATED: Flexible width based on isUpdate */
+                flex-basis: ${isUpdate ? '50%' : '100%'}; /* Preferred width */
+                flex-grow: 1; /* Allow to grow */
+                flex-shrink: 1; /* Allow to shrink (essential for avoiding scrollbar) */
+                min-width: 250px; /* Thoda kam minimum size set kiya */
+                
+                border: 2px solid ${mainBoxBorderColor}; 
+                padding: 20px; 
+                background-color: ${mainBoxBgColor}; 
+                border-radius: 5px;
+            ">
+                <h3 style="margin-top: 0; color: ${mainBoxHeaderColor}; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                    Requested Data (${request.request_type})
+                </h3>
+
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <p style="margin: 0; font-weight: bold;">Picture:</p>
+                    <img src="${getPicSrc(requestedData)}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid ${mainBoxHeaderColor}; margin-top: 5px;">
+                </div>
                 
                 <p><strong>Badge No:</strong> ${requestedData.badge_no || 'N/A'}</p>
-                <p><strong>Picture:</strong> <img src="${requestedData.pic || 'demo.png'}" style="width:50px; height:50px;"></p>
-                   <p><strong>Badge Type:</strong> ${highlight(getOriginalValue('badge_type'), requestedData.badge_type)}</p>
-                <p><strong>Name:</strong> ${highlight(getOriginalValue('name'), requestedName)}</p>
+                <p><strong>Name:</strong> ${highlight(getOriginalValue('name'), requestedData.name)}</p>
                 <p><strong>Parent Name:</strong> ${highlight(getOriginalValue('parent_name'), requestedData.parent_name)}</p>
-                <p><strong>Gender:</strong> ${highlight(getOriginalValue('gender'), requestedData.gender)}</p>
                 <p><strong>Phone:</strong> ${highlight(getOriginalValue('phone'), requestedData.phone)}</p>
-                <p><strong>Birth Date:</strong> ${highlight(formatDateDDMMYYYY(getOriginalValue('birth_date')), formatDateDDMMYYYY(requestedData.birth_date))}</p>
                 <p><strong>Address:</strong> ${highlight(getOriginalValue('address'), requestedData.address)}</p>
-                
+                <p><strong>Birth Date:</strong> ${highlight(formatDateDDMMYYYY(getOriginalValue('birth_date')), formatDateDDMMYYYY(requestedData.birth_date))}</p>
             </div>
         </div>
 
-        <hr>
+        <hr style="margin: 20px 0;">
         
         <h3>Requester's Reason:</h3>
-        <p class="request-reason" style="">${originalReason || 'No reason provided.'}</p>
+        <p style="padding: 10px; background-color: #eee; border-radius: 3px;">${originalReason || 'No reason provided.'}</p>
         
-        <div class="action-buttons-final" style="margin-top: 20px;">
+        <div class="action-buttons-final" style="margin-top: 30px; text-align: center;">
             <button onclick="approveRequest(${request.request_id})" class="btn-approve btn-lg">APPROVE & EXECUTE</button>
-            <button onclick="rejectRequest(${request.request_id})" class="btn-reject btn-lg">REJECT</button>
+            <button onclick="rejectRequest(${request.request_id})" class="btn-reject btn-lg" style="margin-left: 15px;">REJECT</button>
         </div>
     `;
 }

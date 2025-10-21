@@ -28,7 +28,6 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
-
 // CORS MIDDLEWARE (SARE ROUTES SE PEHLE)
 app.use(cors()); 
 
@@ -63,7 +62,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 // ----------------------------------------------------
-
 
 // ----------------------------------------------------
 /// 2. USER SUBMISSION API (MODERATION QUEUE) - FINAL CORRECTED VERSION
@@ -139,9 +137,7 @@ app.post('/api/submit-request', upload.single('pic'), async (req, res) => {
         res.status(500).json({ success: false, message: 'Error submitting request. Check server console.' });
     }
 });
-
 // ----------------------------------------------------
-
 
 // ----------------------------------------------------
 // 3. ADMIN DIRECT ADD API (DATABASE INSERT + LOGGING) - FINAL VERSION
@@ -598,6 +594,315 @@ app.get('/api/request/:requestId', async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch request details.' });
     }
 });
+
+// -------------------- 9. USER MANAGEMENT APIS (ADMIN) --------------------
+
+// 9.1. Add New User (1.1)
+app.post('/api/users/add', async (req, res) => {
+    // memberData fetch karne ka logic same rahega, lekin ab hum ismein se sirf badgeNo use karenge
+   const { username, password, role, addedBy, badgeNo, email } = req.body;
+
+    if (!badgeNo) {
+        return res.status(400).json({ success: false, message: 'Badge Number is required to link member details.' });
+    }
+
+    try {
+        await pool.query('BEGIN'); // Transaction shuru kiya
+
+        // 1. User existence check
+        const checkUser = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+        if (checkUser.rows.length > 0) {
+            await pool.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'User already exists.' });
+        }
+        
+        // 2. Member details check (required to ensure badgeNo is valid)
+        const memberResult = await pool.query(
+            // NOTE: persons table se pic, name, phone, address nikaal rahe hain
+            `SELECT pic, name, phone, address FROM persons WHERE badge_no = $1`, 
+            [badgeNo]
+        );
+        
+        if (memberResult.rows.length === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: `Member details not found for Badge No. ${badgeNo}.` });
+        }
+        
+        const memberData = memberResult.rows[0];
+
+
+        // 3. 🛑 FINAL FIX: Saare 9 NOT NULL columns mein values daali.
+        const result = await pool.query(
+            `INSERT INTO users (badge_no, pic, name, phone, role, username, password, email, address) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING username, role`,
+            [
+                badgeNo,                    // 1. badge_no
+                memberData.pic || 'demo.png', // 2. pic
+                memberData.name,            // 3. name
+                memberData.phone,           // 4. phone
+                role,                       // 5. role
+                username,                   // 6. username
+                password,                   // 7. password
+                email,                      // 8. 🛑 NEW: Admin se aaya hua email use kiya
+                memberData.address          // 9. address
+            ] 
+        );
+
+        // 4. Logging
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            ['USER_CREATED', username, JSON.stringify(result.rows[0]), addedBy, `New user ${username} created and linked to ${badgeNo}.`]
+        );
+        
+        await pool.query('COMMIT'); 
+
+        res.status(201).json({ success: true, user: result.rows[0] });
+    } catch (err) {
+        await pool.query('ROLLBACK'); 
+        console.error('CRITICAL DATABASE ERROR in adminAddUser:', err);
+        res.status(500).json({ success: false, message: `Server error adding user: ${err.message}` });
+    }
+});
+
+// 9.2. View All Users (1.2, 2.3)
+app.get('/api/users/all', async (req, res) => {
+    try {
+        // RESTORE: is_active and last_login are now selected directly as they exist.
+        const result = await pool.query(
+            `SELECT 
+                name, 
+                username,
+                role, 
+                is_active, 
+                last_login 
+             FROM users 
+             ORDER BY username ASC`
+        ); 
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching all users:', err);
+        res.status(500).json({ success: false, message: 'Server error fetching user list.' });
+    }
+});
+
+// 9.3. Update User Role (1.3)
+app.post('/api/users/update-role', async (req, res) => {
+    const { targetUsername, newRole, updatedBy } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE users SET role = $1 WHERE username = $2 RETURNING *`,
+            [newRole, targetUsername]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Target user not found.' });
+        }
+        
+        // Logging
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            ['ROLE_UPDATED', targetUsername, JSON.stringify(result.rows[0]), updatedBy, `Role changed to ${newRole}.`]
+        );
+
+        res.json({ success: true, message: `Role updated to ${newRole}` });
+    } catch (err) {
+        console.error('Error updating user role:', err);
+        res.status(500).json({ success: false, message: 'Server error updating role.' });
+    }
+});
+
+// 9.4. Toggle User Status (Disable/Enable) (1.4)
+app.post('/api/users/toggle-status', async (req, res) => {
+    const { targetUsername, isActive, updatedBy } = req.body;
+    
+    try {
+        // RESTORE: Update the is_active column directly
+        const result = await pool.query(
+            `UPDATE users SET is_active = $1 WHERE username = $2 RETURNING *`,
+            [isActive, targetUsername]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Target user not found.' });
+        }
+        
+        const action = isActive ? 'USER_ENABLED' : 'USER_DISABLED';
+
+        // Logging
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [action, targetUsername, JSON.stringify(result.rows[0]), updatedBy, `User status set to ${isActive}.`]
+        );
+
+        res.json({ success: true, message: `User status updated to ${isActive}` });
+    } catch (err) {
+        console.error('Error toggling user status:', err);
+        res.status(500).json({ success: false, message: 'Server error toggling status.' });
+    }
+});
+
+// 9.5. Admin Password Reset (2.1)
+app.post('/api/users/reset-password', async (req, res) => {
+    const { targetUsername, newPassword, resetBy } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE users SET password = $1 WHERE username = $2 RETURNING username`,
+            [newPassword, targetUsername]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+        
+        // Logging
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, actor_username, submission_reason) 
+             VALUES ($1, $2, $3, $4)`,
+            ['PASSWORD_RESET', targetUsername, resetBy, `Password forcefully reset by ${resetBy}.`]
+        );
+
+        res.json({ success: true, message: 'Password reset successful.' });
+    } catch (err) {
+        console.error('Error resetting password:', err);
+        res.status(500).json({ success: false, message: 'Server error resetting password.' });
+    }
+});
+
+// 9.6. Permanently Delete User
+app.delete('/api/users/delete-permanent', async (req, res) => {
+    const { targetUsername, deletedBy } = req.body;
+    
+    try {
+        await pool.query('BEGIN');
+
+        // 1. Delete user from users table
+        const result = await pool.query(
+            `DELETE FROM users WHERE username = $1 RETURNING *`,
+            [targetUsername]
+        );
+
+        if (result.rows.length === 0) {
+            await pool.query('COMMIT');
+            return res.status(404).json({ success: false, message: 'Target user not found.' });
+        }
+        
+        // 2. Logging
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            ['USER_DELETED_PERM', targetUsername, JSON.stringify(result.rows[0]), deletedBy, `Permanently deleted by ${deletedBy}.`]
+        );
+
+        await pool.query('COMMIT');
+
+        res.json({ success: true, message: `User ${targetUsername} permanently deleted.` });
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error('Error permanently deleting user:', err);
+        res.status(500).json({ success: false, message: 'Server error during permanent deletion.' });
+    }
+});
+
+// 9.7. API to Fetch Single User by Username
+app.get('/api/user/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        // Saare columns fetch karein
+        const result = await pool.query(`SELECT badge_no, pic, name, phone, role, username, email, address, is_active, last_login FROM users WHERE username = $1`, [username]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        
+        // Single user object return karein
+        res.json(result.rows[0]); 
+    } catch (err) {
+        console.error(`Error fetching user ${username}:`, err);
+        res.status(500).json({ success: false, message: 'Server error while fetching user details.' });
+    }
+});
+
+// -------------------- 10. LOGGING API --------------------
+
+// API to fetch all system logs (3.1)
+app.get('/api/logs', async (req, res) => {
+    // 1. Front-end se filters get karna
+    // Assuming the front-end sends username as 'username' and action type as 'actionType'
+    const { username, actionType } = req.query; 
+
+    // 2. Query aur Parameters ko initialize karna
+    let query = `
+        SELECT 
+            log_id, log_timestamp, action_type, actor_username, 
+            target_badge_no, submission_reason
+        FROM logs
+        WHERE 1=1 
+    `; // WHERE 1=1 is a safe starting point
+    
+    const params = [];
+
+    // --- 3. Username Filter (actor_username) ---
+    // Check if the username filter is present and not empty
+    if (username && username.trim() !== '') {
+        // User filter ko case-insensitive banane ke liye ILIKE use kiya gaya hai (best practice)
+        params.push(`%${username.trim()}%`); 
+        query += ` AND actor_username ILIKE $${params.length}`; 
+    }
+
+    // --- 4. Action Type Filter (action_type) ---
+    // Check if the action type filter is selected (assuming 'All Actions' is the default ignored value)
+    if (actionType && actionType !== 'All Actions' && actionType.trim() !== '') {
+        params.push(actionType);
+        query += ` AND action_type = $${params.length}`; 
+    }
+    
+    // 5. Sorting aur Limiting (The mandatory part)
+    query += ' ORDER BY log_timestamp DESC LIMIT 100;'; // log_timestamp column use kiya gaya hai
+    
+    // 6. Final Execution
+    try {
+        console.log("Executing Query:", query, "with Params:", params); // Debugging ke liye
+        const result = await pool.query(query, params);
+        
+        // Agar result.rows empty hai, toh front-end ko empty array bhej do
+        if (result.rows.length === 0) {
+            return res.status(200).json([]); 
+        }
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error fetching logs:", error);
+        res.status(500).json({ error: 'Failed to fetch logs' });
+    }
+});
+
+// -------------------- 11. FORGOT PASSWORD STUB --------------------
+
+// Forgot Password Request (Security ke liye simplified version)
+app.post('/api/forgot-password', async (req, res) => {
+    const { username } = req.body;
+    // Real-world scenario mein yahan email/OTP generation aur sending ka logic hota hai.
+    // Hum sirf check kar rahe hain ki user exist karta hai ya nahi.
+    try {
+        const user = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+
+        if (user.rows.length > 0) {
+            // NOTE: Yahan koi security risk na ho, isliye hum hamesha positive message denge.
+            res.json({ success: true, message: 'Recovery instructions have been sent to the registered contact method.' });
+        } else {
+            // Agar user exist na kare to bhi wohi generic message do
+            res.json({ success: true, message: 'Recovery instructions have been sent to the registered contact method.' });
+        }
+    } catch (error) {
+        console.error('Forgot Password backend error:', error);
+        res.status(500).json({ success: false, message: 'Server error during recovery process.' });
+    }
+});
+
 // Start the server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);

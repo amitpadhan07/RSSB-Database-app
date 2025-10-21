@@ -346,3 +346,70 @@ tr:nth-child(odd) {
     .print-preview-container, .print-preview-container * { visibility: visible; }
     .print-preview-container { position: absolute; left: 0; top: 0; width: 100%; }
 }
+
+/* CSS file mein add karein */
+.table-container {
+    overflow-x: auto; /* Agar table bahut chali jaaye toh scrollbar dega */
+}
+
+.users-table {
+    width: 100%; /* Puri container width use karega */
+    border-collapse: collapse;
+}
+
+.users-table th, .users-table td {
+    padding: 12px 8px; /* Padding badhaya */
+    text-align: left;
+    white-space: nowrap; /* Taki content ek line mein rahe */
+}
+
+/* Custom CSS to fix the width of the Role dropdown */
+
+.users-table th:nth-child(3), /* Role Header */
+.users-table td:nth-child(3)  /* Role Column Data */
+{
+    /* Minimum width set to ensure the dropdown is comfortable */
+    min-width: 80px; 
+    width: 80px;
+}
+
+/* Ensure the dropdown itself takes the full width of the cell */
+.users-table select {
+    min-width: 70px;
+    width: 100%;
+}
+
+/* Actions column ko bhi thoda zyada space den */
+.users-table th:last-child, /* Actions Header */
+.users-table td:last-child  /* Actions Column Data */
+{
+    min-width: 160px; /* Do buttons ke liye kafi hai */
+    white-space: nowrap; /* Taki buttons ek hi line mein rahein */
+}
+
+/* Optional: Name aur Username columns ko thoda zyada stretch karein */
+.users-table th:nth-child(1), .users-table td:nth-child(1),
+.users-table th:nth-child(2), .users-table td:nth-child(2) {
+    width: 15%;
+}
+
+/* CSS Fix: Increase Width of the Main Dashboard Content Area */
+
+/* Maan rahe hain ki aapka main dashboard content is class/ID mein hai */
+#admin-dashboard .content-area {
+    /* Main dashboard content area ko screen ka zyada hissa diya */
+    max-width: 100%; /* Ensure it uses full width if possible */
+    width: 95vw; /* Example: Puri viewport width ka 95% use karein */
+    padding-right: 20px; /* Right side mein margin maintain rakhein */
+}
+
+/* Optional: Agar yeh fix kaam na kare, toh sidebar ki width kam karke content ki width badhayenge */
+/* .sidebar {
+    width: 150px; 
+}
+.content-area {
+    width: calc(100% - 150px); 
+} */
+
+/* Ensure the review container is set to auto flow */
+/* Agar aapne koi media query lagai hai toh use bhi check karein */
