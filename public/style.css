@@ -403,13 +403,12 @@ tr:nth-child(odd) {
     padding-right: 20px; /* Right side mein margin maintain rakhein */
 }
 
-/* Optional: Agar yeh fix kaam na kare, toh sidebar ki width kam karke content ki width badhayenge */
-/* .sidebar {
-    width: 150px; 
+/* Active sort button ko highlight karein */
+.sorting-actions button.active-sort {
+    background-color: #007bff; /* Blue color */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    transform: translateY(-2px);
 }
-.content-area {
-    width: calc(100% - 150px); 
-} */
-
-/* Ensure the review container is set to auto flow */
-/* Agar aapne koi media query lagai hai toh use bhi check karein */
+.sorting-actions button.active-sort:hover {
+    background-color: #0056b3;
+}

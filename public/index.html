@@ -37,7 +37,6 @@
         <nav class="sidebar-menu">
     <button onclick="showAdminSection('add-section')">Add Member</button>
     <button onclick="showAdminSection('view-section')">View All Members</button>
-    <button onclick="showAdminSection('search-section')">Search Records</button>
     <button onclick="showAdminSection('print-list-section')">Print List</button>
     <button onclick="showAdminSection('manage-requests-section')">Manage Action Requests</button>
     <button onclick="showAdminSection('manage-users-section')">Manage Users</button>
@@ -116,8 +115,16 @@
                         <section id="view-section" style="display:none;">
     <h2>All Members</h2>
     <div class="search-container">
-        <input type="text" id="global-search" class="search-box" placeholder="Search all records...">
-        <select id="badge-type-filter">
+        <input type="text" id="global-search" class="search-box" 
+            placeholder="Search all records..." onkeyup="filterAndSearchRecords()">
+        <div class="sorting-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
+    <span style="font-weight: 600; align-self: center;">Sort By:</span>
+    <button onclick="sortRecords('age', this)" data-sort-key="age" data-direction="ASC" class="btn-secondary">Age ↑</button>
+    <button onclick="sortRecords('name', this)" data-sort-key="name" data-direction="ASC" class="btn-secondary">Name ↑</button>
+    <button onclick="sortRecords('address', this)" data-sort-key="address" data-direction="ASC" class="btn-secondary">Address ↑</button>
+    <button onclick="sortRecords('gender', this)" data-sort-key="gender" data-direction="ASC" class="btn-secondary">Gender ↑</button>
+</div>
+        <select id="badge-type-filter" onchange="filterAndSearchRecords()">
             <option value="">All Badge Types</option>
             <option value="OPENSLIP">Open Slip</option>
             <option value="ZONE">Zone</option>
@@ -151,13 +158,7 @@
         </div>
 </section>
                                    
-                        <section id="search-section" style="display:none;">
-                <h2>Search Records</h2>
-                <form id="search-form">
-                                                        </form>
-                <div id="search-results-container">
-                                    </div>
-            </section>
+                 
 
                         <section id="print-list-section" style="display:none;">
                 <h2>Printable List</h2>
@@ -302,7 +303,6 @@
                 <nav class="sidebar-menu">
                 <button onclick="showUserSection('user-add-section')">Add New Record</button>
                 <button onclick="showUserSection('user-view-section')">View All Records</button>
-                <button onclick="showUserSection('user-search-section')">Search Records</button>
                 <button onclick="showUserSection('user-print-list-section')">Print List</button>
                 <button onclick="showUserSection('user-requests-section')">View My Requests</button>
 </nav>
@@ -390,8 +390,16 @@
                         <section id="user-view-section" style="display:none;">
     <h2>All Members</h2>
     <div class="search-container">
-        <input type="text" id="global-search" class="search-box" placeholder="Search all records...">
-        <select id="badge-type-filter">
+        <input type="text" id="user-global-search" class="search-box" 
+            placeholder="Search all records..." onkeyup="filterAndSearchRecords()">
+            <div class="sorting-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
+        <span style="font-weight: 600; align-self: center;">Sort By:</span>
+        <button onclick="sortRecords('age', this)" data-sort-key="age" data-direction="ASC" class="btn-secondary">Age ↑</button>
+        <button onclick="sortRecords('name', this)" data-sort-key="name" data-direction="ASC" class="btn-secondary">Name ↑</button>
+        <button onclick="sortRecords('address', this)" data-sort-key="address" data-direction="ASC" class="btn-secondary">Address ↑</button>
+        <button onclick="sortRecords('gender', this)" data-sort-key="gender" data-direction="ASC" class="btn-secondary">Gender ↑</button>
+    </div>
+      <select id="badge-type-filter" onchange="filterAndSearchRecords()">
             <option value="">All Badge Types</option>
             <option value="OPENSLIP">Open Slip</option>
             <option value="ZONE">Zone</option>
@@ -425,14 +433,6 @@
         </div>
 </section>
                     
-
-                        <section id="user-search-section" style="display:none;">
-                                <h2>Search Records</h2>
-                                <form id="user-search-form">
-                                                        </form>
-                                <div id="user-search-results-container">
-                                                        </div>
-                            </section>
 
                         <section id="user-print-list-section" style="display:none;">
                                 <h2>Printable List</h2>

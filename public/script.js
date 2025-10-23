@@ -113,7 +113,10 @@ function updateTable() {
     // Inner function to avoid repetition
     function fillTableContent(targetTbody) {
         targetTbody.innerHTML = '';
+        
+        // 🛑 FIX: Filtered Records ka use karein
         const recordsToDisplay = database.filteredRecords;
+        
 
         if (recordsToDisplay.length === 0) {
             targetTbody.innerHTML = '<tr><td colspan="14" style="text-align:center;">No records found.</td></tr>'; 
@@ -265,7 +268,6 @@ function setupDashboardListeners() {
     // Admin Dashboard Button Listeners
     document.getElementById('add-member-btn')?.addEventListener('click', () => showAdminSection('add-section'));
     document.getElementById('view-members-btn')?.addEventListener('click', () => showAdminSection('view-section'));
-    document.getElementById('search-btn')?.addEventListener('click', () => showAdminSection('search-section'));
     document.getElementById('print-list-btn')?.addEventListener('click', () => showAdminSection('print-list-section'));
     document.getElementById('manage-requests-btn')?.addEventListener('click', () => showAdminSection('manage-requests-section'));
     document.getElementById('manage-users-btn')?.addEventListener('click', () => showAdminSection('manage-users-section'));
@@ -277,7 +279,6 @@ function setupDashboardListeners() {
     // User Dashboard Button Listeners
     document.getElementById('user-add-member-btn')?.addEventListener('click', () => showUserSection('user-add-section'));
     document.getElementById('user-view-members-btn')?.addEventListener('click', () => showUserSection('user-view-section'));
-    document.getElementById('user-search-btn')?.addEventListener('click', () => showUserSection('user-search-section'));
     document.getElementById('user-print-list-btn')?.addEventListener('click', () => showUserSection('user-print-list-section'));
     document.getElementById('user-manage-requests-btn')?.addEventListener('click', () => showUserSection('user-requests-section'));
 }
@@ -1410,6 +1411,134 @@ async function deleteMember(badgeNo) {
         }
     }
 }
+
+// -------------------- SEARCH & FILTER LOGIC (UPDATED FOR ALL FIELDS) --------------------
+// -------------------- SEARCH & FILTER LOGIC (UPDATED FOR UNIQUE IDs) --------------------
+
+function filterAndSearchRecords() {
+    
+    // Pehle decide karo ki kis section ke inputs ko dekhna hai
+    let searchId;
+    let filterId;
+
+    if (CURRENT_USER.role === 'admin') {
+        searchId = 'global-search';         // Admin IDs (Jo pehle se theek the)
+        filterId = 'badge-type-filter';
+    } else if (CURRENT_USER.role === 'user') {
+        searchId = 'user-global-search';    // 🛑 Ab Nayi User ID uthayega
+        filterId = 'user-badge-type-filter';// 🛑 Ab Nayi User ID uthayega
+    } else {
+        return;
+    }
+    
+    // 1. Inputs se values lein (Ab correct ID use hogi)
+    const searchTerm = document.getElementById(searchId)?.value.trim().toUpperCase() || '';
+    const badgeTypeFilter = document.getElementById(filterId)?.value.trim().toUpperCase() || '';
+    
+    // 2. Database ke sabhi records par filter lagayein (Logic same as before)
+    database.filteredRecords = database.records.filter(record => {
+        
+        if (badgeTypeFilter && record.badge_type !== badgeTypeFilter) {
+            return false;
+        }
+
+        if (searchTerm) {
+            const badgeNo = record.badge_no?.toUpperCase() || '';
+            const name = record.name?.toUpperCase() || '';
+            const parentName = record.parent_name?.toUpperCase() || '';
+            const phone = record.phone || ''; 
+            const address = record.address?.toUpperCase() || '';
+
+            // Age aur Birth Date ke liye helper functions use ho rahe hain
+            const formattedBirthDate = formatDateDDMMYYYY(record.birth_date) || ''; 
+            const age = String(calculateAge(formattedBirthDate));
+
+            const matches = 
+                badgeNo.includes(searchTerm) ||
+                name.includes(searchTerm) ||
+                parentName.includes(searchTerm) ||
+                phone.includes(searchTerm) ||
+                address.includes(searchTerm) ||
+                formattedBirthDate.includes(searchTerm) ||
+                age.includes(searchTerm);
+            
+            return matches;
+        }
+
+        return true; 
+    });
+
+    // 3. Table ko update karein
+    updateTable();
+}
+
+// ----------------------------------------------------------------------------------
+// IMPORTANT: Yeh ensure karo ki updateTable() function mein typo theek ho chuka hai:
+// "targetTboy" ko "targetTbody" se badal diya gaya hai.
+// ----------------------------------------------------------------------------------
+
+// -------------------- NEW SORTING LOGIC --------------------
+
+// Global variable to keep track of the current sort state
+let currentSortState = { key: 'name', direction: 'ASC' };
+
+function sortRecords(key, buttonElement) {
+    let direction = currentSortState.direction;
+    
+    // Agar same button ko click kiya gaya hai, toh direction ko reverse karo
+    if (currentSortState.key === key) {
+        direction = direction === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+        // Agar naya key hai, toh default ASC rakho
+        direction = 'ASC';
+    }
+
+    // Button labels ko update karo (Optional, but looks good)
+    document.querySelectorAll('.sorting-actions button').forEach(btn => {
+        btn.textContent = btn.textContent.replace(' ↑', '').replace(' ↓', '');
+        btn.classList.remove('active-sort');
+    });
+    
+    buttonElement.textContent += (direction === 'ASC' ? ' ↑' : ' ↓');
+    buttonElement.classList.add('active-sort');
+
+    // State update karo
+    currentSortState = { key: key, direction: direction };
+
+    // Sorting logic on the currently filtered records
+    database.filteredRecords.sort((a, b) => {
+        let valA, valB;
+
+        // Special handling for Age (needs numeric comparison)
+        if (key === 'age') {
+            valA = calculateAge(formatDateDDMMYYYY(a.birth_date)) || 0;
+            valB = calculateAge(formatDateDDMMYYYY(b.birth_date)) || 0;
+            // Agar age calculate nahi ho payi, toh 0 maan lenge
+
+        } else if (key === 'name' || key === 'address' || key === 'gender') {
+            // String comparison (case-insensitive)
+            valA = (a[key] || '').toUpperCase();
+            valB = (b[key] || '').toUpperCase();
+        } else {
+            // Default string comparison
+            valA = (a[key] || '').toUpperCase();
+            valB = (b[key] || '').toUpperCase();
+        }
+
+        // Comparison
+        if (valA < valB) {
+            return direction === 'ASC' ? -1 : 1;
+        }
+        if (valA > valB) {
+            return direction === 'ASC' ? 1 : -1;
+        }
+        return 0;
+    });
+
+    // Table ko refresh karo
+    updateTable();
+}
+
 
 // -------------------- UTILITY & HELPERS (Existing Code) --------------------
 
