@@ -8,7 +8,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Yahaan aapka external database URL hai
-const EXTERNAL_DB_URL = 'postgresql://rssbdb_live_user:RFfTQR5KemUNzHnG5RhAlvitl88AxBBK@dpg-d3aif0adbo4c738s7g00-a.oregon-postgres.render.com/rssbdb_live';
+const EXTERNAL_DB_URL = 'postgresql://rssbrudrapur_user:0jYS63ll96ZAhvVAZYh4zPPo8MZ4h5Yv@dpg-d3uc78odl3ps73f1h75g-a.oregon-postgres.render.com/rssbrudrapur';
 
 // PostgreSQL database configuration (SSL fix ke saath)
 const pool = new Pool({
@@ -26,7 +26,8 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => {
         cb(null, Date.now() + path.extname(file.originalname));
     }
-});
+}); 
+
 const upload = multer({ storage: storage });
 // CORS MIDDLEWARE (SARE ROUTES SE PEHLE)
 app.use(cors()); 

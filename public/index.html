@@ -160,11 +160,16 @@
                                    
                  
 
-                        <section id="print-list-section" style="display:none;">
-                <h2>Printable List</h2>
-                <div id="printable-list-content">
-                                    </div>
-            </section>
+                       <section id="print-list-section" style="display:none;">
+    <h2>Printable List Configuration</h2>
+    
+    <!-- 🛑 FIX: This button opens the modal defined above -->
+    <button onclick="showPrintModal()" class="btn-primary" style="margin-bottom: 20px;">Open Print & Export Configuration</button>
+
+    <div id="printable-list-content">
+        <p>Click the button above to configure your printable report.</p>
+    </div>
+</section>
 
             <section id="manage-requests-section" style="display:none;">
                 <h2>Manage Action Requests</h2>
@@ -291,6 +296,67 @@
         // Logs table yahan load hogi
     </div>
 </section>
+<!-- PRINT MODAL (Ise body ke andar, kahin bhi rakha ja sakta hai) -->
+<div id="print-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('print-modal')">&times;</span>
+        <h2>Configure & Export List</h2>
+        
+        <!-- Print Options -->
+        <div class="print-options" style="padding-bottom: 5px;">
+    <h3 style="margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 10px;">1. Select Records & Fields</h3>
+
+            <!-- A. Record Selection (Radio Buttons) -->
+           <div style="border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+        <label style="font-weight: bold; display: block; margin-bottom: 10px;">Fields to Include:</label>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 14px;">
+                <!-- FIX: Labels aur inputs ko sahi spacing de rahe hain -->
+                <label style="display: inline-flex; align-items: center; margin-right: 20px;"><input type="radio" name="records-to-print" value="all" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> All Records</label>
+                
+                <label style="display: inline-flex; align-items: center; margin-right: 20px;"><input type="radio" name="records-to-print" value="filtered" onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Filtered Records</label>
+                
+                <label style="display: inline-flex; align-items: center;"><input type="radio" name="records-to-print" value="selected" onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Selected Records</label>
+            </div>
+            
+            <!-- B. Field Selection (Checkboxes) -->
+            <div style="border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 10px;">Fields to Include:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 14px;">
+                    
+                    <!-- FIX: Har checkbox aur label ko inline-flex aur width: auto de rahe hain -->
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="badge-no" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Badge No</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="name" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Name</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="parent" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Parent Name</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="phone" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Phone</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="address" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Address</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="birth" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Birth Date</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="age" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Age</label>
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="gender" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Gender</label>
+                    
+                    <!-- CRITICAL FIX: Image Black Issue ke liye, crossOrigin attribute zaroori hai -->
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="pic" checked onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Picture</label>
+                    
+                    <label style="display: inline-flex; align-items: center;"><input type="checkbox" name="print-field" value="badge-type" onchange="generatePrintPreview()" style="width: auto; margin-right: 5px;"> Badge Type</label>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Print Preview Area -->
+        <h3 style="margin-top: 10px;">2. Preview & Export</h3>
+<div id="print-preview" class="print-preview-container" style="max-height: 40vh; overflow-y: auto;">
+    <p>Select options and click "Generate Preview" (or options change automatically preview).</p>
+</div>
+
+        <!-- Export Actions -->
+        <div class="modal-actions">
+            <button onclick="printPreview()" class="btn-primary">Print (A4 Format)</button>
+            <button onclick="exportToPDF()" class="btn-secondary">Export to PDF</button>
+            <button onclick="exportToExcel()" class="btn-secondary">Export to Excel</button>
+            <button onclick="exportToImage()" class="btn-secondary">Export to Image (PNG)</button>
+        </div>
+    </div>
+</div>
                    
         </main>
             </div>

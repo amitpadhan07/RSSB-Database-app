@@ -1412,7 +1412,7 @@ async function deleteMember(badgeNo) {
     }
 }
 
-// -------------------- SEARCH & FILTER LOGIC (UPDATED FOR ALL FIELDS) --------------------
+
 // -------------------- SEARCH & FILTER LOGIC (UPDATED FOR UNIQUE IDs) --------------------
 
 function filterAndSearchRecords() {
@@ -1537,6 +1537,559 @@ function sortRecords(key, buttonElement) {
 
     // Table ko refresh karo
     updateTable();
+}
+
+// --- PRINT & EXPORT ---
+
+function showPrintModal() {
+    // NOTE: Agar tumhara modal ID 'print-modal' hai toh isko use karein, 
+    // warna apne sahi modal ID se badal dein.
+    document.getElementById('print-modal').style.display = 'block'; 
+    generatePrintPreview();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function showNotification(message, type = 'info') {
+    // Tumne simple alert use kiya hai, yeh theek hai.
+    alert(message); 
+}
+
+function generatePrintPreview() {
+    // Step 1: User ne kis record set ko print karna hai (selected / filtered / all)
+    // NOTE: Agar radio button ka naam alag hai toh 'records-to-print' ko badal dein
+    const recordsToIncludeEl = document.querySelector('input[name="records-to-print"]:checked');
+    if (!recordsToIncludeEl) {
+        showNotification('Please select which records to print (All/Filtered/Selected).', 'error');
+        return;
+    }
+    const recordsToInclude = recordsToIncludeEl.value;
+    let recordsToPrint = [];
+
+    switch (recordsToInclude) {
+        case 'selected':
+            if (database.selectedRecords.size === 0) {
+                showNotification('Please select records to print.', 'error');
+                document.getElementById('print-preview').innerHTML = '<p>No records selected.</p>';
+                return;
+            }
+            recordsToPrint = [...database.records].filter(record => database.selectedRecords.has(record.badge_no));
+            break;
+
+        case 'filtered':
+            recordsToPrint = [...database.filteredRecords];
+            break;
+
+        case 'all':
+            recordsToPrint = [...database.records];
+            break;
+    }
+
+    if (recordsToPrint.length === 0) {
+        showNotification('No records match the criteria.', 'error');
+        document.getElementById('print-preview').innerHTML = '<p>No records to display.</p>';
+        return;
+    }
+
+    // Step 2: User ne kaunse fields select kiye print ke liye
+    // NOTE: Checkbox group ka naam 'print-field' hona chahiye
+    const printFields = Array.from(document.querySelectorAll('input[name="print-field"]:checked')).map(el => el.value);
+    if (printFields.length === 0) {
+        showNotification('Please select at least one field to print.', 'error');
+        document.getElementById('print-preview').innerHTML = '<p>Please select fields to display.</p>';
+        return;
+    }
+
+    // Step 3: Table headers prepare karna
+    const headers = ['SR NO.'];
+    const fieldMap = {
+        'badge-type': 'BADGE TYPE',
+        'badge-no': 'BADGE NO.',
+        'pic': 'PICTURE',
+        'name': 'NAME',
+        'parent': 'PARENT NAME',
+        'gender': 'GENDER',
+        'phone': 'PHONE',
+        'birth': 'BIRTH DATE',
+        'age': 'AGE',
+        'address': 'ADDRESS'
+    };
+    printFields.forEach(field => headers.push(fieldMap[field]));
+
+    // Step 4: Table rows generate karna
+    const rows = recordsToPrint.map((record, index) => {
+        let rowData = `<td>${index + 1}</td>`;
+        printFields.forEach(field => {
+            let cellData = '';
+            switch (field) {
+                case 'age': 
+                    // Calculate Age helper function use kiya
+                    cellData = calculateAge(formatDateDDMMYYYY(record.birth_date)); 
+                    break;
+                case 'parent': 
+                    cellData = record.parent_name || ''; 
+                    break;
+                case 'birth': 
+                    // Date Format helper function use kiya
+                    cellData = formatDateDDMMYYYY(record.birth_date) || ''; 
+                    break;
+                case 'pic': 
+                    cellData = `<img src="${record.pic || 'demo.png'}" style="width:50px;height:50px;border-radius:50%;">`;
+                    break;
+                default: 
+                    // Default field value nikalne ke liye field name ko replace kiya
+                    cellData = record[field.replace('-', '_')] || ''; 
+            }
+            rowData += `<td>${cellData}</td>`;
+        });
+        return `<tr>${rowData}</tr>`;
+    }).join('');
+
+    // Step 5: Print preview HTML build karna
+    const logoPath = "logo.png"; // Local logo path
+
+    const printPreview = document.querySelector('.print-preview-container');
+    printPreview.innerHTML = `
+    <table **id="list-data-table"** border="1" cellpadding="5" cellspacing="0" width="100%" 
+            style="border-collapse: collapse; font-size:11px; page-break-inside:auto;">
+        <thead style="display: table-header-group;">
+            <tr>
+                <th colspan="${headers.length}" style="padding:10px; background:#fff; color:#000;">
+                    <div style="display:flex; align-items:center; justify-content:center;">
+                        <img src="${logoPath}" style="height:50px; margin-right:10px;">
+                        <div style="text-align:center;">
+                            <h2 style="margin:0; font-size:20px; font-weight:bold;">SEWADAR LIST</h2>
+                            <span class="first-page-date" style="font-size:12px;">
+                                Generated on ${new Date().toLocaleDateString()}
+                            </span>
+                        </div>
+                    </div>
+                </th>
+            </tr>
+            <tr style="background:#222;color:#fff;font-weight:bold; text-align:center;">
+                ${headers.map(h => `<th>${h}</th>`).join('')}
+            </tr>
+        </thead>
+        <tbody style="display: table-row-group;">
+            ${rows}
+            <tr style="font-weight:bold; background:#f2f2f2;">
+                <td colspan="${headers.length}" style="text-align:right;">
+                    Total: ${recordsToPrint.length} records
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    `;
+
+    // Step 6: Print-specific CSS inject karna
+    const styleId = 'print-style-injector';
+    let style = document.getElementById(styleId);
+    if (!style) {
+        style = document.createElement('style');
+        style.id = styleId;
+        document.head.appendChild(style);
+    }
+    style.innerHTML = `
+        @media print {
+            .first-page-date { display: block; } 
+            thead tr:first-child { display: table-row-group; } 
+            tbody tr:last-child { page-break-after: auto; }
+            /* Basic print styles for clean output */
+            body { margin:0; font-family: Arial, sans-serif; }
+            table { width:100%; border-collapse: collapse; font-size:11px; page-break-inside:auto; }
+            th, td { border:1px solid #555; padding:4px; }
+            th { background:#222 !important; color:#fff !important; font-weight:bold; text-align:center; }
+            @page { size: auto; margin: 15mm; }
+        }
+    `;
+}
+
+// -------------------- Print function --------------------
+function printPreview() {
+    const printContent = document.getElementById('print-preview').innerHTML;
+    // NOTE: Print styles ko generatePrintPreview se hi inject kiya ja raha hai, 
+    // isliye yahan sirf content ko iframe mein daalna hai.
+    
+    // Check if content is available
+    if (!printContent.trim()) {
+        showNotification('Please generate a print preview first.', 'error');
+        return;
+    }
+
+    const printArea = document.createElement('iframe');
+    printArea.style.position = 'absolute';
+    printArea.style.width = '0';
+    printArea.style.height = '0';
+    document.body.appendChild(printArea);
+
+    const printDoc = printArea.contentWindow.document;
+    printDoc.open();
+    // HTML structure ko iframe mein daala
+    printDoc.write(`<html><head><title>Print List</title></head><body>${printContent}</body></html>`);
+    printDoc.close();
+
+    printArea.contentWindow.focus();
+    printArea.contentWindow.print();
+
+    // cleanup
+    setTimeout(() => document.body.removeChild(printArea), 100); 
+}
+
+// -------------------- PDF function --------------------
+async function exportToPDF() {
+    // Check for library
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        showNotification('jsPDF library is not loaded. Check index.html.', 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    // orientation: "portrait" (default A4 portrait)
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }); 
+
+    const preview = document.getElementById("print-preview");
+    if (!preview || !preview.innerHTML.trim()) {
+        showNotification("Please generate a preview first.", 'error');
+        return;
+    }
+    
+    // PDF Generation ki logic (jismein rows aur headers generate hote hain)
+    
+    // 1. Fields aur headers phir se generate karein (Taki PDF me exact wahi order aur data ho)
+    const recordsToIncludeEl = document.querySelector('input[name="records-to-print"]:checked');
+    const recordsToInclude = recordsToIncludeEl ? recordsToIncludeEl.value : 'all';
+    
+    const printFields = Array.from(document.querySelectorAll('input[name="print-field"]:checked')).map(el => el.value);
+    
+    // Agar pic selected nahi hai, toh use pehle add karo (taki image draw ho sake)
+    if (!printFields.includes('pic')) {
+          printFields.unshift('pic');
+    }
+
+    const headers = ["SR NO."];
+    const fieldMap = {
+        "pic": "PICTURE",
+        "badge-type": "BADGE TYPE",
+        "badge-no": "BADGE NO.",
+        "name": "NAME",
+        "parent": "PARENT NAME",
+        "gender": "GENDER",
+        "phone": "PHONE",
+        "birth": "BIRTH DATE",
+        "age": "AGE",
+        "address": "ADDRESS"
+    };
+    printFields.forEach(f => headers.push(fieldMap[f]));
+
+
+    // 2. Records to Print tayyar karo
+    let recordsToPrint = [];
+    switch (recordsToInclude) {
+        case "selected":
+             // Yahan tumhari database object available honi chahiye
+             recordsToPrint = [...database.records].filter(r => database.selectedRecords.has(r.badge_no));
+             break;
+        case "filtered":
+             recordsToPrint = [...database.filteredRecords];
+             break;
+        case "all":
+             recordsToPrint = [...database.records];
+             break;
+    }
+
+    if (recordsToPrint.length === 0) {
+        showNotification("No records to export.", 'error');
+        return;
+    }
+
+    // 3. Rows for autoTable
+    const rows = recordsToPrint.map((record, index) => {
+        const row = [index + 1];
+        printFields.forEach(field => {
+            let cellValue = '';
+            switch(field) {
+                case "pic":
+                    cellValue = ""; // Text ko empty rakho, image didDrawCell mein aayegi
+                    break;
+                case "age":
+                    cellValue = calculateAge(formatDateDDMMYYYY(record.birth_date));
+                    break;
+                case "birth":
+                    cellValue = formatDateDDMMYYYY(record.birth_date);
+                    break;
+                case "parent":
+                    cellValue = record.parent_name;
+                    break;
+                default:
+                    cellValue = record[field.replace("-", "_")] || "";
+            }
+            row.push(cellValue);
+        });
+        return row;
+    });
+
+    // 4. Add total row
+    rows.push(Array(headers.length).fill(""));
+    rows[rows.length - 1][headers.length - 1] = `Total: ${recordsToPrint.length} records`;
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+
+    // 5. autoTable call
+    doc.autoTable({
+        head: [headers],
+        body: rows,
+        margin: { top: 35, left: 12, right: 12 },
+        styles: { 
+    fontSize: 8, // 9 se 8 kiya
+    cellPadding: 2, // 3 se 2 kiya
+    lineColor: [200, 200, 200], 
+    lineWidth: 0.1, 
+    cellWidth: 'wrap' 
+},
+        
+        headStyles: { fillColor: [34, 45, 50], textColor: 255, fontStyle: "bold", halign: "center" },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        bodyStyles: { textColor: [33, 33, 33], halign: "center" },
+        // 👇 ERROR FIXED: columnStyles nesting corrected
+        columnStyles: { 
+    0: { cellWidth: 8, halign: "center" }, // SR NO. (10 se 8 kiya)
+    1: { cellWidth: 12, halign: "center" }, // PIC (15 se 12 kiya)
+        },
+        // 👆 End of columnStyles
+        
+        rowPageBreak: 'auto',
+
+        // Image Drawing Logic (CRITICAL)
+        didDrawCell: function (data) {
+    if (data.section === 'body') {
+        const colIndex = data.column.index;
+        const fieldNameIndex = colIndex - 1; 
+        
+        if (printFields[fieldNameIndex] === "pic") {
+            
+            // 🛑 CRITICAL FIX: Safety check for record existence
+            const record = recordsToPrint[data.row.index];
+            if (!record) return; // Agar record undefined hai to crash mat hone do
+            
+            // Image drawing logic (same as before)
+            const imgPath = record.pic || "demo.png"; 
+            try {
+                doc.addImage(imgPath, "PNG", data.cell.x + 1, data.cell.y + 1, 10, 10);
+            } catch (e) {
+                console.error("Image draw error in PDF:", e);
+            }
+        }
+    }
+},
+
+        // Header/Footer Logic
+        didDrawPage: function (data) {
+            const logoSize = 12;
+            const gap = 5;
+            const blockY = 18;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            const title = "SEWADAR LIST";
+            const titleWidth = doc.getTextWidth(title);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            const dateText = "Generated on " + new Date().toLocaleDateString();
+            const blockWidth = logoSize + gap + Math.max(titleWidth, doc.getTextWidth(dateText));
+            const startX = (pageWidth - blockWidth) / 2;
+
+            try {
+                // Logo path
+                doc.addImage("logo.png", "PNG", startX, blockY - logoSize + 5, logoSize, logoSize);
+            } catch(e) {} // Image not found error handle karo
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            doc.text(title, startX + logoSize + gap, blockY);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text(dateText, startX + logoSize + gap, blockY + 6);
+
+            // Line separator
+            doc.setDrawColor(60);
+            doc.setLineWidth(0.5);
+            doc.line(12, blockY + 10, pageWidth - 12, blockY + 10);
+
+            // Footer (Page Number)
+            const str = "Page " + data.pageNumber + " of " + doc.internal.getNumberOfPages();
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "italic");
+            doc.text(str, pageWidth / 2, pageHeight - 10, { align: "center" });
+        }
+    });
+
+    doc.save("SEWADAR_LIST.pdf");
+}
+
+
+// -------------------- Excel function --------------------
+
+function exportToExcel() {
+    // Check for library
+    if (!window.XLSX) {
+        showNotification('SheetJS library is not loaded. Check index.html.', 'error');
+        return;
+    }
+    
+    const table = document.getElementById('print-preview').querySelector('table');
+    if (!table) {
+        showNotification("Please generate a preview first.", 'error');
+        return;
+    }
+    
+    // Table to worksheet conversion (Yahan image link nahi aayega, sirf text data)
+    const ws = XLSX.utils.table_to_sheet(table);
+
+    // Styling and cleanup logic remains the same (good code)
+    const range = XLSX.utils.decode_range(ws['!ref']);
+
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellRef]) continue;
+
+            if (R === 0) { // Header row styling
+                ws[cellRef].s = {
+                    font: { bold: true, color: { rgb: "FFFFFF" } },
+                    fill: { fgColor: { rgb: "2C3E50" } }, 
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "999999" } },
+                        bottom: { style: "thin", color: { rgb: "999999" } },
+                        left: { style: "thin", color: { rgb: "999999" } },
+                        right: { style: "thin", color: { rgb: "999999" } }
+                    }
+                };
+            } else {
+                // Normal rows styling
+                ws[cellRef].s = {
+                    alignment: { vertical: "center" },
+                    border: {
+                        top: { style: "thin", color: { rgb: "DDDDDD" } },
+                        bottom: { style: "thin", color: { rgb: "DDDDDD" } },
+                        left: { style: "thin", color: { rgb: "DDDDDD" } },
+                        right: { style: "thin", color: { rgb: "DDDDDD" } }
+                    }
+                };
+                if (R % 2 === 0) {
+                    ws[cellRef].s.fill = { fgColor: { rgb: "F5F5F5" } }; 
+                }
+            }
+        }
+    }
+
+    // Auto column widths
+    const colWidths = [];
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+        let maxWidth = 10;
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+            if (ws[cellRef] && ws[cellRef].v) {
+                // Ignore picture cell's length for width calculation
+                if (C === 4 && R > 0) continue; 
+                
+                const len = ws[cellRef].v.toString().length;
+                if (len > maxWidth) maxWidth = len;
+            }
+        }
+        colWidths.push({ wch: C === 4 ? 12 : maxWidth + 2 }); // Pic column ko fixed width 12 diya
+    }
+    ws['!cols'] = colWidths;
+
+    // Create and save workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SEWADAR_LIST");
+    XLSX.writeFile(wb, "SEWADAR_LIST.xlsx");
+}
+
+// -------------------- Image function --------------------
+
+
+async function exportToImage() {
+    // 1. Target Element
+   const targetElement = document.getElementById('list-data-table');
+    
+    if (!targetElement || !targetElement.innerHTML.trim()) {
+        showNotification("Please generate a preview first.", 'error');
+        return;
+    }
+
+    if (typeof window.html2canvas !== 'function') {
+        showNotification('html2canvas library is not loaded. Check script tags.', 'error');
+        return;
+    }
+    
+    // 2. CRITICAL FIX: Get the full content dimensions
+    // Isse poora scrolling content capture hoga.
+   const fullWidth = targetElement.scrollWidth;
+    const fullHeight = targetElement.scrollHeight;
+
+    // 3. Pre-process and wait for resources
+    const images = targetElement.querySelectorAll('img');
+    images.forEach(img => {
+        if (!img.crossOrigin) {
+            img.crossOrigin = "anonymous";
+        }
+    });
+    
+    await waitForImages(targetElement);
+
+    // 4. Capture the HTML using html2canvas
+   try {
+        const canvas = await window.html2canvas(targetElement, {
+            useCORS: true,
+            logging: false, 
+            allowTaint: false,
+            
+            // 🛑 MAIN FIX FOR FULL CAPTURE:
+           width: fullWidth,
+            height: fullHeight,
+            scrollX: 0, 
+            scrollY: 0
+        });
+
+        // 5. Download the image
+        canvas.toBlob(blob => {
+            if (!blob) {
+                showNotification("Failed to create image.", 'error');
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = 'SEWADAR_FULL_LIST.png';
+            link.href = url;
+            link.click();
+            
+            URL.revokeObjectURL(url); 
+        }, 'image/png');
+        
+    } catch (err) {
+        console.error("Export failed:", err);
+        showNotification("Failed to export image. Check console.", 'error');
+    }
+}
+
+// Wait until all images in a container are fully loaded (Helper function)
+function waitForImages(container) {
+    const images = container.querySelectorAll('img');
+    return Promise.all(Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+            img.onload = img.onerror = resolve;
+        });
+    }));
 }
 
 

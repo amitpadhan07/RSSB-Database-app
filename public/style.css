@@ -239,13 +239,21 @@ tr:nth-child(odd) {
 
 .modal-content {
     background-color: #ffffff;
-    margin: 5% auto;
+    /* Margin thoda adjust kiya */
+    margin: 5% auto; 
     padding: 25px;
     border-radius: 12px;
     width: 90%;
-    max-width: 900px;
-    max-height: 80vh;
-    overflow-y: auto;
+    
+    /* FIX 1: Max Width badhaya taki zyaada columns fit ho sakein */
+    max-width: 850px; 
+    
+    /* FIX 2: Max Height badhaya */
+    max-height: 90vh; 
+    
+    /* CRITICAL FIX 3: Modal ko scrollable rakha (screen chhota hone par) */
+    overflow-y: auto; 
+    
     display: flex;
     flex-direction: column;
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -263,14 +271,19 @@ tr:nth-child(odd) {
     color: #000;
 }
 
+
 /* ---------- Print Options ---------- */
 .print-options {
     margin-bottom: 20px;
     background: #f5f5f5;
     padding: 15px;
     border-radius: 8px;
-    overflow-y: auto;
-    max-height: 200px;
+    
+    /* 🛑 CRITICAL FIX: Yeh do lines hata do ya comment kar do */
+    /* overflow-y: auto; */ 
+    /* max-height: 200px; */
+    
+    /* Ab ismein koi height constraint nahi hai, yeh aaram se expand hoga */
     position: relative;
 }
 
