@@ -11,10 +11,12 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^2.2.0",
+    "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "html2canvas": "^1.4.1",
     "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
     "pg": "^8.16.3"
   }
 }
