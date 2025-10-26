@@ -3,6 +3,8 @@ const { Pool } = require('pg');
 const path = require('path');
 const multer = require('multer');
 const cors = require('cors'); 
+const cloudinary = require('cloudinary').v2; // <--- ✅ NEW: Cloudinary import kiya
+const { CloudinaryStorage } = require('multer-storage-cloudinary'); // <--- ✅ NEW: Cloudinary storage import kiya
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,17 +20,26 @@ const pool = new Pool({
     }
 });
 
-// Multer storage configuration
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'public/uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-}); 
+// 1. Cloudinary configuration
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, // Render se values uthegi
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-const upload = multer({ storage: storage });
+// 2. Multer storage configuration (Cloudinary ko target karega)
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'RSSB_RUDRAPUR_PICS', // Cloudinary par folder
+        format: async (req, file) => 'jpg', 
+        // public_id mein badgeNo aur timestamp use kar sakte hain
+        public_id: (req, file) => `badge_${req.body.badgeNo || 'NEW'}_${Date.now()}`,
+        // Isse Multer ki disk-write-error ki problem solve ho jaegi
+    },
+});
+
+const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 // CORS MIDDLEWARE (SARE ROUTES SE PEHLE)
 app.use(cors()); 
 
@@ -87,7 +98,7 @@ app.post('/api/submit-request', upload.single('pic'), async (req, res) => {
     // 1. Requested Data ko JSONB format mein taiyyar karna
     let picPath;
     if (req.file) {
-        picPath = `uploads/${req.file.filename}`; // Naya file uploaded
+        picPath = req.file.path; // Cloudinary URL
     } else if (oldPicPath) {
         picPath = oldPicPath; // oldPicPath field se value li
     } else {
@@ -145,7 +156,7 @@ app.post('/api/submit-request', upload.single('pic'), async (req, res) => {
 app.post('/api/records', upload.single('pic'), async (req, res) => {
     // 1. Data extraction: Ab hum adminTrackingID ko bhi nikaal rahe hain
     const { badgeType, badgeNo, name, parent, gender, phone, birth, address, adminTrackingID } = req.body;
-    const pic = req.file ? `uploads/${req.file.filename}` : 'demo.png';
+    const pic = req.file ? req.file.path : 'demo.png';
     
     try {
         // 1. ORIGINAL INSERT INTO PERSONS TABLE (Direct Action)
@@ -370,12 +381,12 @@ app.put('/api/records/:originalBadgeNo', upload.single('pic'), async (req, res) 
     // 1. Data extraction: Ab hum adminTrackingID bhi nikaal rahe hain
     const { badgeType, badgeNo, name, parent, gender, phone, birth, address, adminTrackingID } = req.body; 
     
-    let pic;
-    if (req.file) {
-        pic = `uploads/${req.file.filename}`;
-    } else {
-        pic = req.body.pic;
-    }
+   let pic;
+if (req.file) {
+    pic = req.file.path; // Cloudinary URL
+} else {
+    pic = req.body.pic; // Purana URL ya path
+}
 
     try {
         await pool.query('BEGIN'); // Transaction shuru
