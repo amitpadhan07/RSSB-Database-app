@@ -1,0 +1,122 @@
+TABLE FOR RSSB PROJECT ON POSTGES SQL DATABASE
+
+-- ************************************
+-- 1. persons Table (Member Details)
+-- ************************************
+
+CREATE TABLE persons (
+    badge_no CHARACTER VARYING(50) PRIMARY KEY,
+    badge_type CHARACTER VARYING(20) NOT NULL,
+    pic CHARACTER VARYING(255) DEFAULT 'demo.png',
+    name CHARACTER VARYING(100) NOT NULL,
+    parent_name CHARACTER VARYING(100) NOT NULL,
+    gender CHARACTER VARYING(10) NOT NULL,
+    phone CHARACTER VARYING(15),
+    birth_date DATE,
+    address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ************************************
+-- 2. users Table (Access Control/Login)
+-- ************************************
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username CHARACTER VARYING(50) UNIQUE NOT NULL,
+    password CHARACTER VARYING(255) NOT NULL,
+    role CHARACTER VARYING(20) NOT NULL DEFAULT 'User', -- Role-based access
+    email CHARACTER VARYING(100),
+    badge_no CHARACTER VARYING(50) UNIQUE, -- Links to persons table
+    pic CHARACTER VARYING(255),
+    name CHARACTER VARYING(100) NOT NULL,
+    phone CHARACTER VARYING(15),
+    address TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_login TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Foreign Key Constraint to link to persons
+    CONSTRAINT users_badge_no_fkey FOREIGN KEY (badge_no) 
+    REFERENCES persons(badge_no) 
+);
+
+
+-- ************************************
+-- 3. logs Table (Comprehensive Logging System)
+-- ************************************
+
+CREATE TABLE logs (
+    log_id SERIAL PRIMARY KEY,
+    log_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    action_type CHARACTER VARYING(50) NOT NULL, -- e.g., 'LOGIN', 'MEMBER_UPDATE', 'REQUEST_APPROVED'
+    tracking_id CHARACTER VARYING(100), -- For linking log entries (e.g., to a moderation request)
+    actor_username CHARACTER VARYING(50), -- Who performed the action
+    approver_username CHARACTER VARYING(50), -- Who approved the action (if applicable)
+    target_badge_no CHARACTER VARYING(50), -- Which person/member was affected
+    record_snapshot JSONB, -- Stores the old/new data for audit
+    submission_reason TEXT
+    -- NOTE: You may want to add Foreign Keys here to 'users' and 'persons' for better integrity
+);
+
+
+-- ************************************
+-- 4. moderation_requests Table (Approval Workflow)
+-- ************************************
+
+CREATE TABLE moderation_requests (
+    request_id SERIAL PRIMARY KEY,
+    tracking_id CHARACTER VARYING(100) UNIQUE NOT NULL,
+    request_type CHARACTER VARYING(10) NOT NULL, -- e.g., 'EDIT', 'DELETE', 'CREATE'
+    target_badge_no CHARACTER VARYING(50) NOT NULL,
+    requested_data JSONB NOT NULL, -- The new data proposed by the requester
+    requester_username CHARACTER VARYING(50) NOT NULL,
+    submission_reason TEXT,
+    request_status CHARACTER VARYING(20) NOT NULL DEFAULT 'Pending', -- 'Pending', 'Approved', 'Rejected'
+    submission_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign Key Constraint
+    CONSTRAINT moderation_requests_requester_username_fkey FOREIGN KEY (requester_username)
+        REFERENCES users(username)
+);
+
+
+-- ************************************
+-- 5. password_reset_tokens Table (Forgot Password System)
+-- ************************************
+
+CREATE TABLE password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token CHARACTER VARYING(255) UNIQUE NOT NULL,
+    expiry_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign Key Constraint
+    CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id)
+        REFERENCES users(id)
+);
+
+
+-- ************************************
+-- 6. attendance_log Table (Tracking IN/OUT)
+-- ************************************
+
+CREATE TABLE attendance_log (
+    log_id SERIAL PRIMARY KEY,
+    username CHARACTER VARYING(50),
+    "timestamp" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    action_type CHARACTER VARYING(3) NOT NULL, -- Should be 'IN' or 'OUT'
+
+    -- Check constraint to ensure action_type is only 'IN' or 'OUT'
+    CONSTRAINT attendance_log_action_type_check CHECK (action_type IN ('IN', 'OUT')),
+
+    -- Foreign Key Constraint
+    CONSTRAINT attendance_log_username_fkey FOREIGN KEY (username)
+        REFERENCES users(username) ON DELETE CASCADE
+);
+
+-- Index for fast lookups based on user and time
+CREATE INDEX idx_attendance_username_timestamp ON attendance_log (username, "timestamp" DESC);

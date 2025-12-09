@@ -87,24 +87,22 @@ async function showAllRecords() {
 
 function updateTable() {
     // Current user ke role ke hisaab se sahi table body ID choose karein
-    // NOTE: Agar aapne Admin aur User mein do alag ID rakhe hain, toh yeh logic use hoga.
     const tableBodyId = CURRENT_USER.role === 'admin' ? 'admin-records-body' : 'user-records-body';
     
-    // Agar dono mein same ID hai, toh hum 'records-body' ID ko hi target karte hain (Jo aapne pehle use ki thi)
-    // Hum maan rahe hain ki aapne pichle step mein ID ko unique kar diya hai.
-    const tbody = document.getElementById(tableBodyId);
+    // Attempt to get the correct table body
+    let tbody = document.getElementById(tableBodyId);
 
+    // Fallback logic for robustness
     if (!tbody) {
-        // Agar yeh ID nahi mili to console mein error aayega
-        console.error(`Critical Error: Table body (${tableBodyId}) is missing from the active dashboard section.`);
-        // Emergency fallback: agar Admin ki table visible hai, to use hi target karo
-        const fallbackTbody = document.getElementById('records-body'); 
-        if (fallbackTbody) {
-            // Agar ek generic ID mili, toh use hi fill karte hain.
-            // Hum isi par kaam karenge kyunki yeh sabse aasan hai.
-            fillTableContent(fallbackTbody);
-            return;
+        if (CURRENT_USER.role === 'admin' && document.getElementById('admin-dashboard')?.style.display === 'flex') {
+             tbody = document.getElementById('admin-records-body');
+        } else if (CURRENT_USER.role === 'user' && document.getElementById('user-dashboard')?.style.display === 'flex') {
+             tbody = document.getElementById('user-records-body');
         }
+    }
+    
+    if (!tbody) {
+        console.warn(`Warning: Could not find active table body for role: ${CURRENT_USER.role}`);
         return;
     }
     
@@ -114,16 +112,21 @@ function updateTable() {
     function fillTableContent(targetTbody) {
         targetTbody.innerHTML = '';
         
-        // 🛑 FIX: Filtered Records ka use karein
-        const recordsToDisplay = database.filteredRecords;
+        const recordsToDisplay = database.filteredRecords; // Data source
         
-
         if (recordsToDisplay.length === 0) {
             targetTbody.innerHTML = '<tr><td colspan="14" style="text-align:center;">No records found.</td></tr>'; 
             return;
         }
         
-        recordsToDisplay.forEach((record, i) => {
+        recordsToDisplay.forEach((record, i) => { // <-- 'record' is correctly defined here
+            
+            // 🛑 CRITICAL FIX: Image Source ko loop ke andar define kiya
+            // Aur BASE_URL ke saath jod kar path theek kiya
+            const imageSrc = record.pic && record.pic !== 'demo.png' 
+                ? `${BASE_URL}/${record.pic}` 
+                : 'demo.png';
+
             const isSelected = database.selectedRecords.has(record.badge_no);
             const row = document.createElement('tr');
             if (isSelected) row.classList.add('selected-row');
@@ -133,8 +136,8 @@ function updateTable() {
                 <td>${i + 1}</td>
                 <td>${record.badge_type || ''}</td>
                 <td>${record.badge_no || ''}</td>
-                <td><img src="${record.pic || 'demo.png'}" alt="pic" style="height:50px;width:50px;border-radius:50%;"></td>
-                <td>${record.name || ''}</td>
+                
+                <td><img src="${imageSrc}" alt="pic" style="height:50px;width:50px;border-radius:50%;"></td> <td>${record.name || ''}</td>
                 <td>${record.parent_name || ''}</td>
                 <td>${record.gender || ''}</td>
                 <td>${record.phone || ''}</td>
@@ -419,6 +422,8 @@ async function viewAllUsers() {
 }
 
 
+
+
 // 1.2.1 🛑 NEW: Function for Permanent Deletion (CRITICAL ACTION)
 async function permanentlyDeleteUser(targetUsername) {
     if (!confirm(`WARNING: Are you sure you want to PERMANENTLY DELETE user ${targetUsername}? This action cannot be undone and will remove all their logs/requests.`)) {
@@ -435,8 +440,14 @@ async function permanentlyDeleteUser(targetUsername) {
         const response = await fetch(`${BASE_URL}/api/users/delete-permanent`, {
             method: 'DELETE', // DELETE method use kiya
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUsername, deletedBy: CURRENT_USER.username })
+            body: JSON.stringify({ targetUsername, deletedBy: CURRENT_USER.username }), // 🛑 FIX: Ensure comma is present here
         });
+
+        // Backend fix: Agar 500 error aaye, to detailed message show karo
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown server error (check console)' }));
+            throw new Error(`Deletion Failed: ${errorData.message}`);
+        }
 
         const result = await response.json();
 
@@ -448,7 +459,7 @@ async function permanentlyDeleteUser(targetUsername) {
         }
     } catch (error) {
         console.error('Error during permanent deletion:', error);
-        alert('Network error during permanent deletion.');
+        alert(`Deletion failed! ${error.message || 'Check console for network error.'}`);
     }
 }
 
@@ -976,6 +987,12 @@ function fillUpdateForm(record, formContainerId, isModerated) {
     // Field IDs ka prefix role ke hisaab se set karte hain
     const prefix = isModerated ? 'user-update' : 'admin-update';
     
+    // 🛑 CRITICAL FIX: Image Source Path Correction
+    // Agar pic path "demo.png" nahi hai, toh BASE_URL ke saath jod kar use karein
+    const imageSrc = record.pic && record.pic !== 'demo.png' 
+        ? `${BASE_URL}/${record.pic}` 
+        : 'demo.png';
+    
     // Yahan saare fields ka HTML dynamically create karein aur value fill karein
     container.innerHTML = `
         <div class="form-group">
@@ -992,7 +1009,9 @@ function fillUpdateForm(record, formContainerId, isModerated) {
         
         <div class="form-group update-pic-group">
             <label>Current Picture:</label>
-            <img src="${record.pic || 'demo.png'}" style="width:100px; height:100px; border-radius:50%; margin-bottom: 10px;">
+            
+            <img src="${imageSrc}" style="width:100px; height:100px; border-radius:50%; margin-bottom: 10px;">
+            
             <label for="${prefix}-pic">Change Picture:</label>
             <input type="file" id="${prefix}-pic" accept="image/*">
             <input type="hidden" id="${prefix}-pic-path-old" value="${record.pic}"> 
@@ -1412,7 +1431,6 @@ async function deleteMember(badgeNo) {
     }
 }
 
-// -------------------- SEARCH & FILTER LOGIC (UPDATED FOR ALL FIELDS) --------------------
 // -------------------- SEARCH & FILTER LOGIC (UPDATED FOR UNIQUE IDs) --------------------
 
 function filterAndSearchRecords() {
@@ -1542,8 +1560,6 @@ function sortRecords(key, buttonElement) {
 
 // -------------------- UTILITY & HELPERS (Existing Code) --------------------
 
-
-
 // Function to show a dedicated detail/action page for a specific member
 async function showMemberActions(badgeNo) {
     if (!badgeNo) {
@@ -1581,12 +1597,20 @@ async function showMemberActions(badgeNo) {
         
         const record = await response.json();
         
+        // 🛑 CRITICAL FIX: Image Source Path Correction
+        // Agar pic path "demo.png" nahi hai, toh BASE_URL ke saath jod kar use karein
+        const imageSrc = record.pic && record.pic !== 'demo.png' 
+            ? `${BASE_URL}/${record.pic}` 
+            : 'demo.png';
+            
         // 3. Populate HTML Section
         detailSection.innerHTML = `
             <button onclick="${goBackFunctionName}('${viewSectionId}')" style="float:right;">Go Back</button>
             <h2>Member Details & Actions: ${record.name}</h2>
             <div style="display:flex; gap:20px; align-items:center; padding: 20px 0;">
-                <img src="${record.pic || 'demo.png'}" style="width:120px; height:120px; border-radius:5px;">
+                
+                <img src="${imageSrc}" style="width:120px; height:120px; border-radius:5px;">
+                
                 <div>
                     <p><strong>Badge No:</strong> ${record.badge_no}</p>
                     <p><strong>Parent:</strong> ${record.parent_name || 'N/A'}</p>
