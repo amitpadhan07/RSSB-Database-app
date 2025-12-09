@@ -121,11 +121,10 @@ function updateTable() {
         
         recordsToDisplay.forEach((record, i) => { // <-- 'record' is correctly defined here
             
-            // 🛑 CRITICAL FIX: Image Source ko loop ke andar define kiya
-            // Aur BASE_URL ke saath jod kar path theek kiya
-            const imageSrc = record.pic && record.pic !== 'demo.png' 
-                ? `${BASE_URL}/${record.pic}` 
-                : 'demo.png';
+         // ✅ Corrected Code for Cloudinary (updateTable function ke andar)
+const imageSrc = record.pic && record.pic !== 'demo.png' && record.pic.startsWith('http')
+    ? record.pic 
+    : 'demo.png';
 
             const isSelected = database.selectedRecords.has(record.badge_no);
             const row = document.createElement('tr');
@@ -437,26 +436,39 @@ async function permanentlyDeleteUser(targetUsername) {
     }
 
     try {
-        const response = await fetch(`${BASE_URL}/api/users/delete-permanent`, {
+        const deletedBy = CURRENT_USER.username || 'ADMIN_PANEL';
+
+        // 🛑 CRITICAL FIX 1: URL ko theek kiya - DELETE /api/users/:username use kiya
+        const response = await fetch(`${BASE_URL}/api/users/${targetUsername}`, {
             method: 'DELETE', // DELETE method use kiya
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUsername, deletedBy: CURRENT_USER.username }), // 🛑 FIX: Ensure comma is present here
+            // 🛑 CRITICAL FIX 2: Body mein sirf woh data bheja jo backend ko logging ke liye chahiye
+            body: JSON.stringify({ 
+                deletedBy: deletedBy,
+                reason: `User permanently deleted by ${deletedBy}.` 
+            }), 
         });
 
         // Backend fix: Agar 500 error aaye, to detailed message show karo
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Unknown server error (check console)' }));
-            throw new Error(`Deletion Failed: ${errorData.message}`);
+            // Hum .json() ko call karke dekhenge, agar woh fail ho toh plain text error dikhayenge
+            const errorText = await response.text();
+            try {
+                const errorData = JSON.parse(errorText);
+                // Agar backend se JSON error aata hai
+                throw new Error(`Deletion Failed: ${errorData.message}`);
+            } catch {
+                // Agar backend se non-JSON (HTML/Server Crash) error aata hai
+                 throw new Error(`Deletion Failed (Server Crash): Check console for error details.`);
+            }
         }
 
-        const result = await response.json();
+        const result = await response.json(); // Success response
 
-        if (result.success) {
-            alert(`User ${targetUsername} permanently deleted!`);
-            viewAllUsers(); // List refresh karein
-        } else {
-            alert(`Deletion failed: ${result.message}`);
-        }
+        // Backend se message aana chahiye ki deletion successful ho gaya
+        alert(`User ${targetUsername} permanently deleted!`);
+        viewAllUsers(); // List refresh karein
+        
     } catch (error) {
         console.error('Error during permanent deletion:', error);
         alert(`Deletion failed! ${error.message || 'Check console for network error.'}`);
@@ -989,9 +1001,9 @@ function fillUpdateForm(record, formContainerId, isModerated) {
     
     // 🛑 CRITICAL FIX: Image Source Path Correction
     // Agar pic path "demo.png" nahi hai, toh BASE_URL ke saath jod kar use karein
-    const imageSrc = record.pic && record.pic !== 'demo.png' 
-        ? `${BASE_URL}/${record.pic}` 
-        : 'demo.png';
+   const imageSrc = record.pic && record.pic !== 'demo.png' && record.pic.startsWith('http')
+    ? record.pic
+    : 'demo.png';
     
     // Yahan saare fields ka HTML dynamically create karein aur value fill karein
     container.innerHTML = `
@@ -1599,9 +1611,9 @@ async function showMemberActions(badgeNo) {
         
         // 🛑 CRITICAL FIX: Image Source Path Correction
         // Agar pic path "demo.png" nahi hai, toh BASE_URL ke saath jod kar use karein
-        const imageSrc = record.pic && record.pic !== 'demo.png' 
-            ? `${BASE_URL}/${record.pic}` 
-            : 'demo.png';
+        const imageSrc = record.pic && record.pic !== 'demo.png' && record.pic.startsWith('http')
+    ? record.pic
+    : 'demo.png';
             
         // 3. Populate HTML Section
         detailSection.innerHTML = `
