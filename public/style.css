@@ -1,46 +1,61 @@
 /* ---------- Global Styles ---------- */
+:root {
+    --primary-color: #000000;
+    --secondary-color: #007bff;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --bg-light: #f8f9fa;
+    --text-dark: #333333;
+    --text-light: #ffffff;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 0;
-    background: #ffffff; /* white for main pages */
-    color: #333333;
+    background: var(--bg-light);
+    color: var(--text-dark);
 }
 
-/* ---------- Login Screen ---------- */
-#login-screen {
+a {
+    color: var(--text-light);
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+/* ---------- Login & Forgot Password Screens ---------- */
+#login-screen, #forgot-password-screen {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100vh; /* full viewport height */
+    height: 100vh;
     background: url('login-bg.jpg') no-repeat center center;
-    background-size: cover; /* cover whole screen */
+    background-size: cover;
     display: flex;
-    justify-content: flex-end; /* login box on right for desktop */
+    justify-content: flex-end;
     align-items: center;
     padding-right: 50px;
     z-index: 1000;
     overflow: hidden;
 }
 
-/* Dark overlay for readability */
-#login-screen::before {
+#login-screen::before, #forgot-password-screen::before {
     content: "";
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.4); /* subtle dark overlay */
+    background-color: rgba(0, 0, 0, 0.4);
     z-index: 1;
 }
 
-/* Login Box Styling - Transparent & Professional */
 .login-box {
     position: relative;
-    z-index: 2; /* above overlay */
-    background-color: rgba(255, 255, 255, 0.2); /* transparent box */
-    backdrop-filter: blur(10px); /* glass effect */
+    z-index: 2;
+    background-color: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     padding: 40px 30px;
     border-radius: 15px;
@@ -56,7 +71,6 @@ body {
     box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 
-/* Logo */
 .logo {
     display: block;
     margin: 0 auto 25px auto;
@@ -64,7 +78,11 @@ body {
     height: auto;
 }
 
-/* Inputs */
+.login-box h2 {
+    color: var(--text-light);
+    margin: 10px 0;
+}
+
 .login-box input {
     width: 100%;
     padding: 14px;
@@ -72,7 +90,7 @@ body {
     border: none;
     border-radius: 10px;
     background-color: rgba(255, 255, 255, 0.8);
-    color: #333;
+    color: var(--text-dark);
     font-size: 15px;
     box-sizing: border-box;
     transition: all 0.3s;
@@ -83,15 +101,14 @@ body {
     box-shadow: 0 0 8px rgba(0,0,0,0.3);
 }
 
-/* Button */
 .login-box button {
     width: 100%;
     padding: 14px;
     margin-top: 15px;
     border: none;
     border-radius: 10px;
-    background-color: #000;
-    color: #fff;
+    background-color: var(--primary-color);
+    color: var(--text-light);
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
@@ -103,18 +120,20 @@ body {
     transform: translateY(-2px);
 }
 
-/* Small Text */
-.login-box p {
-    font-size: 13px;
+.login-box a {
+    display: block;
     margin-top: 10px;
     color: #eee;
+    font-size: 14px;
 }
 
-/* ---------- Responsive Design ---------- */
+/* ---------- Responsive Design for Login ---------- */
 @media (max-width: 768px) {
-    #login-screen {
-        justify-content: center; /* center login box on mobile */
+    #login-screen, #forgot-password-screen {
+        justify-content: center;
         padding: 0;
+        align-items: flex-start; /* Start from top for better visibility */
+        padding-top: 5vh;
     }
     .login-box {
         width: 90%;
@@ -122,38 +141,215 @@ body {
     }
 }
 
+/* ==================================================== */
+/* --- DASHBOARD LAYOUT & NAVIGATION --- */
+/* ==================================================== */
 
-/* ---------- Main Container ---------- */
-.container {
-    max-width: 1200px;
-    margin: 30px auto;
-    background: #f5f5f5;
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-    display: none; /* Hidden until login */
-}
-.container h1 {
-    text-align: center; /* horizontal center */
-    font-size: 32px;
-    font-weight: 700;
-    margin: 20px 0;
-}
-
-
-/* ---------- Menu & Buttons ---------- */
-.menu {
+.dashboard-container {
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-    justify-content: center;
+    min-height: 100vh;
+    background-color: #ffffff;
 }
+
+/* Header */
+header {
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    padding: 15px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+/* Sidebar Navigation - FIX APPLIED HERE */
+.sidebar-menu {
+    width: 250px;
+    background-color: #eeeeee;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+    
+    /* Set Fixed to full viewport height */
+    position: fixed;
+    left: 0;
+    z-index: 50; 
+    top: 0; 
+    height: 100vh; 
+    
+    /* Padding to account for the fixed header */
+    padding-top: 80px; 
+    padding-left: 10px;
+    padding-right: 10px;
+    
+    /* Remove padding-bottom, sticky button handles spacing */
+    /* padding-bottom: 70px; */ 
+    
+    overflow-y: auto; /* Allows scrolling if menu items are long */
+}
+
+.sidebar-menu button {
+    display: block;
+    width: 100%;
+    padding: 12px 10px;
+    margin: 8px 0;
+    background: transparent;
+    color: var(--text-dark);
+    border: none;
+    text-align: left;
+    font-weight: 500;
+    transition: all 0.3s;
+    border-radius: 4px;
+}
+
+.sidebar-menu button:hover {
+    background: #dddddd;
+    color: var(--primary-color);
+    transform: none;
+}
+
+/* 2. Style the Logout Button - FIX APPLIED HERE */
+.sidebar-logout-btn {
+    /* CRITICAL FIX: Use sticky positioning to anchor the button to the bottom 
+       of the scrollable sidebar container. */
+    position: sticky !important; 
+    
+    /* Anchor the button to the bottom of the container */
+    bottom: 0px; 
+    
+    z-index: 60; /* Ensure it overlays the scrolling menu items */
+    
+    left: 10px;
+    right: 10px;
+    width: auto !important; 
+    
+    /* Highlight the button */
+    background-color: #111111 !important; 
+    color: var(--text-light) !important;
+    font-weight: 600 !important;
+    padding: 14px !important;
+    margin-top: 20px !important; /* Add separation from the last menu link */
+    margin-bottom: 10px !important; /* Keep 10px from the bottom edge */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    transform: none !important;
+}
+
+.sidebar-logout-btn:hover {
+    background-color: #111111 !important; 
+    transform: translateY(-2px) !important;
+}
+
+
+/* Main Content Area */
+.content-area {
+    margin-left: 250px; /* Offset for sidebar */
+    padding: 80px 20px 20px 20px; /* Space for fixed header */
+    flex-grow: 1;
+    min-width: calc(100% - 250px);
+    box-sizing: border-box;
+}
+
+/* --- Content Sections --- */
+.content-area section {
+    background-color: #ffffff;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+/* --- Manage Users Sub-Navigation --- */
+.sub-nav-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 5px;
+}
+
+.sub-nav-tabs button {
+    background: #f1f1f1;
+    color: var(--text-dark);
+    border: 1px solid #ccc;
+    padding: 8px 15px;
+}
+
+.sub-nav-tabs button:hover {
+    background: #e1e1e1;
+}
+
+
+/* ==================================================== */
+/* --- FORMS & INPUTS --- */
+/* ==================================================== */
+
+.form-group {
+    margin-bottom: 18px;
+    max-width: 400px; 
+}
+
+.form-card {
+    background-color: var(--bg-light);
+    border: 1px solid #ddd;
+    padding: 25px;
+    border-radius: 8px;
+    max-width: 450px;
+    margin-top: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--text-dark);
+    font-size: 14px;
+}
+
+input[type="text"], 
+input[type="password"], 
+input[type="email"], 
+select, 
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background-color: #fff;
+    color: var(--text-dark);
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+
+/* ==================================================== */
+/* --- BUTTONS & ACTIONS --- */
+/* ==================================================== */
 
 button {
     padding: 12px 20px;
-    background: #000000;
-    color: #ffffff;
+    background: var(--primary-color);
+    color: var(--text-light);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -166,55 +362,79 @@ button:hover {
     transform: translateY(-2px);
 }
 
-/* ---------- Forms ---------- */
-.form-container {
-    background-color: #ffffff;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    display: none;
-    border: 1px solid #ddd;
+.btn-primary {
+    background-color: var(--secondary-color);
+}
+.btn-primary:hover {
+    background-color: #0056b3;
 }
 
-.form-group {
-    margin-bottom: 18px;
+.btn-secondary {
+    background-color: #6c757d;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
 }
 
-label {
-    display: block;
-    margin-bottom: 6px;
+/* Approval/Moderation Buttons */
+.btn-approve {
+    background-color: var(--success-color);
+}
+.btn-approve:hover {
+    background-color: #1e7e34;
+}
+
+.btn-reject, .btn-delete {
+    background-color: var(--danger-color);
+}
+.btn-reject:hover, .btn-delete:hover {
+    background-color: #bd2130;
+}
+
+.btn-disable {
+    background-color: var(--danger-color); /* Red for disabling */
+}
+.btn-enable {
+    background-color: var(--success-color); /* Green for enabling */
+}
+
+/* Large button for review page */
+.btn-lg {
+    padding: 15px 30px;
+    font-size: 16px;
     font-weight: 600;
-    text-align: left;
-    color: #333;
 }
 
-input, select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-sizing: border-box;
-    background-color: #fff;
-    color: #333;
+
+/* ==================================================== */
+/* --- TABLES & DATA DISPLAY --- */
+/* ==================================================== */
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 15px;
 }
 
-/* ---------- Tables ---------- */
 table {
     width: 100%;
+    min-width: 1200px; /* Ensure wide tables don't collapse */
     border-collapse: collapse;
     margin-bottom: 25px;
+    font-size: 14px;
 }
 
 th, td {
-    border: 1px solid #ccc;
-    padding: 12px;
+    border: 1px solid #ddd;
+    padding: 12px 8px;
     text-align: left;
+    vertical-align: middle;
 }
 
 th {
-    background-color: #000;
-    color: #fff;
+    background-color: var(--primary-color);
+    color: var(--text-light);
     font-weight: 600;
+    white-space: nowrap;
 }
 
 tr:nth-child(even) {
@@ -225,190 +445,153 @@ tr:nth-child(odd) {
     background-color: #ffffff;
 }
 
-/* ---------- Modals ---------- */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 999;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.3);
-}
-
-.modal-content {
-    background-color: #ffffff;
-    margin: 5% auto;
-    padding: 25px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 900px;
-    max-height: 80vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-}
-
-.close {
-    color: #333;
-    align-self: flex-end;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: #000;
-}
-
-/* ---------- Print Options ---------- */
-.print-options {
-    margin-bottom: 20px;
-    background: #f5f5f5;
-    padding: 15px;
-    border-radius: 8px;
-    overflow-y: auto;
-    max-height: 200px;
-    position: relative;
-}
-
-.print-options label {
-    display: inline-block;
-    margin-right: 15px;
-    color: #333;
-}
-
-.scroll-to-options {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    background-color: #000;
-    padding: 6px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    color: white;
-}
-
-.scroll-to-options:hover {
-    background-color: #333;
-}
-
-/* ---------- Print Preview ---------- */
-.print-preview-container {
-    flex: 1;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 15px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-}
-
-/* ---------- Misc ---------- */
-.modal-actions, .export-options {
-    text-align: center;
-    margin-top: 20px;
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-}
-
 .selected-row {
-    background-color: #d4edda !important;
+    background-color: #d4edda !important; /* Success green highlight */
 }
 
-/* ---------- Scroll-to-top ---------- */
+/* Search/Filter */
+.search-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.search-box {
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+/* Sorting Actions */
+.sorting-actions {
+    display: flex; 
+    gap: 10px;
+}
+.sorting-actions button {
+    background: #6c757d;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+.sorting-actions button.active-sort {
+    background-color: var(--secondary-color);
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+
+/* --- User Management Table Specifics --- */
+.users-table th, .users-table td {
+    white-space: nowrap; 
+}
+.users-table th:nth-child(3), .users-table td:nth-child(3) {
+    min-width: 100px; 
+}
+.users-table select {
+    min-width: 70px;
+    width: 100%;
+}
+.users-table th:last-child, .users-table td:last-child {
+    min-width: 200px; 
+}
+
+/* --- Moderation/Request Tables --- */
+.moderation-table {
+    min-width: 900px;
+}
+
+.type-add, .status-pending {
+    font-weight: bold;
+    color: var(--secondary-color);
+}
+.type-update {
+    color: orange;
+    font-weight: bold;
+}
+.type-delete {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+.status-approved {
+    color: var(--success-color);
+    font-weight: bold;
+}
+.status-rejected {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+
+
+/* ==================================================== */
+/* --- MISC UTILITIES --- */
+/* ==================================================== */
+
+.batch-actions {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.form-card h3 {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--secondary-color);
+}
+
+/* Scroll-to-top button */
 .scroll-to-top {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background-color: #000;
-    color: white;
+    background-color: var(--primary-color);
+    color: var(--text-light);
     border: none;
     border-radius: 50%;
     width: 50px;
     height: 50px;
     font-size: 22px;
     cursor: pointer;
-    display: none;
+    display: none; /* Controlled by JavaScript */
     z-index: 99;
 }
 
-.scroll-to-top:hover {
-    background-color: #333;
-}
 
 /* ---------- Print Styles ---------- */
 @media print {
-    .no-print { display: none !important; }
-    body * { visibility: hidden; }
-    .print-preview-container, .print-preview-container * { visibility: visible; }
-    .print-preview-container { position: absolute; left: 0; top: 0; width: 100%; }
-}
-
-/* CSS file mein add karein */
-.table-container {
-    overflow-x: auto; /* Agar table bahut chali jaaye toh scrollbar dega */
-}
-
-.users-table {
-    width: 100%; /* Puri container width use karega */
-    border-collapse: collapse;
-}
-
-.users-table th, .users-table td {
-    padding: 12px 8px; /* Padding badhaya */
-    text-align: left;
-    white-space: nowrap; /* Taki content ek line mein rahe */
-}
-
-/* Custom CSS to fix the width of the Role dropdown */
-
-.users-table th:nth-child(3), /* Role Header */
-.users-table td:nth-child(3)  /* Role Column Data */
-{
-    /* Minimum width set to ensure the dropdown is comfortable */
-    min-width: 80px; 
-    width: 80px;
-}
-
-/* Ensure the dropdown itself takes the full width of the cell */
-.users-table select {
-    min-width: 70px;
-    width: 100%;
-}
-
-/* Actions column ko bhi thoda zyada space den */
-.users-table th:last-child, /* Actions Header */
-.users-table td:last-child  /* Actions Column Data */
-{
-    min-width: 160px; /* Do buttons ke liye kafi hai */
-    white-space: nowrap; /* Taki buttons ek hi line mein rahein */
-}
-
-/* Optional: Name aur Username columns ko thoda zyada stretch karein */
-.users-table th:nth-child(1), .users-table td:nth-child(1),
-.users-table th:nth-child(2), .users-table td:nth-child(2) {
-    width: 15%;
-}
-
-/* CSS Fix: Increase Width of the Main Dashboard Content Area */
-
-/* Maan rahe hain ki aapka main dashboard content is class/ID mein hai */
-#admin-dashboard .content-area {
-    /* Main dashboard content area ko screen ka zyada hissa diya */
-    max-width: 100%; /* Ensure it uses full width if possible */
-    width: 95vw; /* Example: Puri viewport width ka 95% use karein */
-    padding-right: 20px; /* Right side mein margin maintain rakhein */
-}
-
-/* Active sort button ko highlight karein */
-.sorting-actions button.active-sort {
-    background-color: #007bff; /* Blue color */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-    transform: translateY(-2px);
-}
-.sorting-actions button.active-sort:hover {
-    background-color: #0056b3;
+    /* Hide non-essential UI elements */
+    header, .sidebar-menu, .scroll-to-top, .no-print, .action-buttons-final, 
+    .search-container, .batch-actions, .log-filters { 
+        display: none !important; 
+    }
+    
+    /* Ensure main content is visible and fills the page */
+    body {
+        background: none;
+        margin: 0;
+        padding: 0;
+    }
+    .dashboard-container, .content-area {
+        display: block;
+        margin-left: 0;
+        padding: 0;
+    }
+    .content-area section {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+    }
+    
+    /* Ensure tables and details are visible */
+    table {
+        min-width: 100%;
+        width: 100%;
+    }
+    th {
+        background-color: #333 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }

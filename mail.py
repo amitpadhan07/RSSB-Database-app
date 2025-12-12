@@ -3,23 +3,37 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 sender_email = "rssbsecrudrapur@gmail.com"
-sender_password = "uxpa mgyf ojym owtu"
+sender_password = "hxag laxd rgxb nnni"
 
 recipients = [
     "padhanamit072006@gmail.com",
-    "aamit75789@gmail.com",
-    "ayushisaini554@gmail.com"
+    "lavanyajoshi889@gmail.com"
 ]
 
-subject = "Default Notification"
+subject = "RSSB Account Password Reset Successful"
 message_body = """
-Hello Chuiya,
+Dear LAVANYA JOSHI,
 
-This is a mail for the chuiya(ayu) ,khana kha le ,jiska koi nhi hota uska upr wala hota hai .
+Your password for the RSSB system has been successfully reset.
 
-Thank you!
-Apka Pyara Bhai
-Amit Padhan
+Please use the following temporary credentials to log in:
+Username: lavi07
+New Password: Lavi@07
+
+For security purposes, please ensure you change your password immediately upon logging in to the system.
+
+This action was performed by your request (Self-Initiated Reset).
+Timestamp: 11/12/2025 12:47:00 PM .
+
+---
+
+Thank you for using the RSSB system.
+You can log in to your account here: https://rssb-rudrapur-database-api.onrender.com
+
+For any other support or queries regarding your account or the system, please contact us at: rssbsecrudrapur@gmail.com
+
+Best regards,
+The RSSB Administration Team
 """
 
 try:
