@@ -113,45 +113,47 @@ function generateRandomPassword(length = 12) {
  * This is the most robust version against deployment/SQL issues.
  */
 app.post('/api/login', async (req, res) => {
-  try {
     const { username, password } = req.body;
+    try {
+        // 1. Fetch ALL user data (active or disabled)
+        const userResult = await pool.query(
+            "SELECT password, role, is_active, badge_no FROM users WHERE username = $1",
+            [username]
+        );
 
-    const userQuery = 'SELECT id, username, password, role, is_active FROM users WHERE username = $1';
-    const { rows } = await db.query(userQuery, [username]);
+        if (userResult.rows.length === 0) {
+            // User not found
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+        
+        const user = userResult.rows[0];
 
-    if (!rows || rows.length === 0) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+        // 2. CRITICAL CHECK: Block disabled users IMMEDIATELY after fetch
+        if (user.is_active === false) {
+             console.log(`[BLOCKED] Disabled user attempt: ${username}`);
+             return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' }); 
+        }
+
+        const storedHash = user.password;
+        
+        // 3. Verify the password hash (Only for active users)
+        const isMatch = await bcrypt.compare(password, storedHash);
+
+        if (isMatch) {
+            
+            // Update last_login timestamp
+            await pool.query("UPDATE users SET last_login = NOW() WHERE username = $1", [username]);
+            
+            res.json({ success: true, message: 'Login successful!', role: user.role });
+        } else {
+            // Password mismatch
+            res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+    } catch (error) {
+        console.error('Backend login error:', error);
+        res.status(500).json({ success: false, message: 'Server error during login.' });
     }
-
-    const user = rows[0];
-
-    // ⭐ ADD THIS DEBUG LOG HERE ⭐
-    console.log("Login attempt:", username, "is_active =", user.is_active);
-
-    // Now check is_active BEFORE password compare
-    if (!user.is_active) {
-      return res.status(403).json({ success: false, message: "Account is disabled" });
-    }
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
-
-    return res.json({
-      success: true,
-      message: "Login successful",
-      role: user.role,
-      username: user.username,
-      user_id: user.id
-    });
-
-  } catch (error) {
-    console.error("Login error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
 });
-
 
 
 // ====================================================
