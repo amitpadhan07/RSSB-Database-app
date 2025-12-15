@@ -596,6 +596,19 @@ tr:nth-child(odd) {
     }
 }
 
+/* style.css (Add new styles for pending status) */
+
+/* Highlight rows with pending moderation requests */
+.pending-status-row {
+    background-color: #fff3cd !important; /* Light yellow background */
+    border-left: 5px solid orange;
+    transition: background-color 0.3s;
+}
+
+.pending-status-row:hover {
+    background-color: #ffeeba !important;
+}
+
 /* ---------- Reset Password Page ---------- */
 
 .reset-wrapper {

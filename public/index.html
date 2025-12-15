@@ -60,6 +60,7 @@
             <button onclick="showAdminSection('print-list-section')">Print List</button>
             <button onclick="showAdminSection('manage-requests-section')">Manage Action Requests</button>
             <button onclick="showAdminSection('manage-users-section')">Manage Users</button>
+            <button onclick="showAdminSection('admin-profile-section'); viewMyProfile();">👤 My Profile</button>
             <button onclick="showAdminSection('admin-settings-section')">⚙️ Settings</button>
             <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
         </nav>
@@ -302,6 +303,15 @@
 
                 </div>
             </section>
+            <section id="manage-users-section" style="display: none;">
+                </section>
+            
+            <section id="admin-profile-section" style="display:none;">
+                <h2>My Admin Profile</h2>
+                <div id="admin-profile-details">
+                    </div>
+            </section> <section id="admin-settings-section" style="display:none;">
+                </section>
 
             <section id="admin-settings-section" style="display:none;">
                 <h2>My Account Settings</h2>
@@ -339,6 +349,7 @@
             <button onclick="showUserSection('user-view-section')">View All Records</button>
             <button onclick="showUserSection('user-print-list-section')">Print List</button>
             <button onclick="showUserSection('user-requests-section')">View My Requests</button>
+            <button onclick="showUserSection('user-profile-section'); viewMyProfile();">👤 My Profile</button>
             <button onclick="showUserSection('user-settings-section')">⚙️ Settings</button>
             <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
         </nav>
@@ -492,6 +503,12 @@
 
                 <div id="my-requests-list-container">
                 </div>
+            </section>
+
+            <section id="user-profile-section" style="display:none;">
+                <h2>My Profile</h2>
+                <div id="user-profile-details">
+                    </div>
             </section>
 
             <section id="user-settings-section" style="display:none;">

@@ -718,6 +718,79 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/request-history/:targetBadgeNo
+ * Fetches the history of all moderation requests for a specific member.
+ */
+app.get('/api/request-history/:targetBadgeNo', async (req, res) => {
+    const { targetBadgeNo } = req.params;
+    
+    if (!targetBadgeNo) {
+        return res.status(400).json({ success: false, message: 'Target Badge Number is required.' });
+    }
+    
+    try {
+        const result = await pool.query(
+            `SELECT request_id, request_type, requester_username, request_status, submission_timestamp, submission_reason
+             FROM moderation_requests
+             WHERE target_badge_no = $1
+             ORDER BY submission_timestamp DESC`,
+            [targetBadgeNo]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(`Error fetching request history for ${targetBadgeNo}:`, err);
+        res.status(500).json({ success: false, message: 'Failed to fetch request history.' });
+    }
+});
+
+/**
+ * GET /api/pending-statuses
+ * Fetches all unique badge numbers currently in a 'Pending' moderation request.
+ */
+app.get('/api/pending-statuses', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT DISTINCT target_badge_no
+             FROM moderation_requests
+             WHERE request_status = 'Pending'`
+        );
+        // Transform result to a simple array of badge numbers
+        const pendingBadges = result.rows.map(row => row.target_badge_no);
+        res.json(pendingBadges);
+    } catch (err) {
+        console.error('Error fetching pending statuses:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch pending statuses.' });
+    }
+});
+
+/**
+ * GET /api/pending-request-id/:badgeNo
+ * Fetches the request_id of the single PENDING request for a given badge number.
+ * This is used by general users (non-Admin) to view the status of a record under review.
+ */
+app.get('/api/pending-request-id/:badgeNo', async (req, res) => {
+    const { badgeNo } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT request_id
+             FROM moderation_requests
+             WHERE target_badge_no = $1 AND request_status = 'Pending'
+             LIMIT 1`, // Assuming only one pending request per badgeNo at a time
+            [badgeNo]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'No pending request found for this badge number.' });
+        }
+
+        res.json({ requestId: result.rows[0].request_id });
+    } catch (err) {
+        console.error(`Error fetching pending request ID for ${badgeNo}:`, err);
+        res.status(500).json({ success: false, message: 'Failed to fetch pending request ID.' });
+    }
+});
+
 // ====================================================
 // --- 5. USER MANAGEMENT APIS (Admin) ---
 // ====================================================
@@ -907,6 +980,68 @@ app.post('/api/users/update-role', async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error updating role.' });
     }
 });
+
+
+// server.js (New API: PUT /api/users/:username)
+
+/**
+ * PUT /api/users/:username
+ * Admin updates the linked badge_no, name, phone, email, and address fields of a user account.
+ */
+app.put('/api/users/:username', async (req, res) => {
+    const { username } = req.params;
+    const { badgeNo, name, phone, email, address, updatedBy } = req.body;
+    
+    // Validate critical fields
+    if (!username || !badgeNo || !name || !email || !updatedBy) {
+        return res.status(400).json({ success: false, message: 'Missing mandatory fields for update.' });
+    }
+
+    try {
+        await pool.query('BEGIN');
+
+        // 1. UPDATE USER ACCOUNT
+        const updateResult = await pool.query(
+            `UPDATE users 
+             SET badge_no = $1, name = $2, phone = $3, email = $4, address = $5
+             WHERE username = $6 RETURNING *`,
+            [badgeNo, name, phone, email, address, username]
+        );
+
+        if (updateResult.rows.length === 0) {
+            await pool.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'User account not found for update.' });
+        }
+        
+        const updatedUser = updateResult.rows[0];
+
+        // 2. LOGGING
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+                'USER_DETAILS_UPDATED',
+                badgeNo,
+                JSON.stringify(updatedUser),
+                updatedBy,
+                `${username} account details updated by Admin: ${updatedBy}.`
+            ]
+        );
+
+        await pool.query('COMMIT');
+        res.json({ success: true, message: `User details for ${username} updated successfully.` });
+
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        console.error('Error updating user details:', err);
+        // Check for unique constraint violation (e.g., if new badgeNo already linked to another user)
+        if (err.code === '23505') {
+            return res.status(409).json({ success: false, message: 'Conflict: The new Badge No. or Email is already associated with another account.' });
+        }
+        res.status(500).json({ success: false, message: 'Server error during user detail update.' });
+    }
+});
+
 
 /**
  * POST /api/users/toggle-status
@@ -1119,6 +1254,25 @@ app.get('/api/logs', async (req, res) => {
     } catch (error) {
         console.error("Error fetching logs:", error);
         res.status(500).json({ error: 'Failed to fetch logs' });
+    }
+});
+
+app.get('/api/logs/:logId', async (req, res) => {
+    const { logId } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT * FROM logs WHERE log_id = $1`,
+            [logId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Log entry not found.' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(`Error fetching log ${logId}:`, err);
+        res.status(500).json({ success: false, message: 'Failed to fetch log details.' });
     }
 });
 

@@ -12,13 +12,32 @@ const database = {
     selectedRecords: new Set() // For batch actions
 };
 
-
-
 // Global variable to hold logs data for client-side filtering (Caching)
 let ALL_SYSTEM_LOGS = []; 
-
-// Global variable to keep track of the current table sort state
+let PENDING_BADGES = new Set(); // <--- ADD THIS NEW SET VARIABLE
 let currentSortState = { key: 'name', direction: 'ASC' };
+
+/**
+ * Encodes a string (including Unicode/UTF-8 characters) to a safe Base64 string.
+ * This function bypasses the Latin1 limitation of btoa().
+ * @param {string} str - The string to encode.
+ * @returns {string} The Base64 encoded string.
+ */
+function encodeBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
+
+/**
+ * Decodes a Base64 string back to its original (Unicode/UTF-8) string format.
+ * @param {string} str - The Base64 string to decode.
+ * @returns {string} The original string.
+ */
+function decodeBase64(str) {
+    return decodeURIComponent(escape(atob(str)));
+}
+
+
+
 
 // ====================================================
 // --- CORE UTILITIES ---
@@ -149,6 +168,15 @@ async function initializeDatabase() {
         database.filteredRecords = [...data];
         database.count = data.length;
         
+        // NEW: Fetch Pending Statuses
+        const pendingResponse = await fetch(`${BASE_URL}/api/pending-statuses`);
+        if (pendingResponse.ok) {
+            const pendingList = await pendingResponse.json();
+            PENDING_BADGES = new Set(pendingList); // Store pending badge numbers
+        } else {
+             console.warn("Could not fetch pending statuses.");
+        }
+        
         // Re-run the table update to display data
         updateTable();
     } catch (err) {
@@ -186,21 +214,25 @@ function updateTable() {
             : 'demo.png';
 
         const isSelected = database.selectedRecords.has(record.badge_no);
+        const hasPendingRequest = PENDING_BADGES.has(record.badge_no); // <--- CHECK STATUS HERE
         const row = document.createElement('tr');
         if (isSelected) row.classList.add('selected-row');
+        if (hasPendingRequest) row.classList.add('pending-status-row'); // <--- ADD CLASS HERE
         
         const birthDateFormatted = formatDateDDMMYYYY(record.birth_date);
         const ageCalculated = calculateAge(birthDateFormatted);
+
+        const pendingBadgeHtml = hasPendingRequest ? 
+            '<span style="color: orange; font-weight: bold; margin-left: 5px;" title="Pending Action Request"> ⚠️</span>' : '';
         
-        row.innerHTML = `
+       row.innerHTML = `
             <td><input type="checkbox" class="record-checkbox" data-badge-no="${record.badge_no}" ${isSelected ? 'checked' : ''} onchange="toggleRecordSelection(this)"></td>
             <td>${i + 1}</td>
             <td>${record.badge_type || ''}</td>
             <td>${record.badge_no || ''}</td>
             
             <td><img src="${imageSrc}" alt="pic" style="height:50px;width:50px;border-radius:50%; object-fit: cover;"></td>
-            <td>${record.name || ''}</td>
-            <td>${record.parent_name || ''}</td>
+            <td>${record.name || ''} ${pendingBadgeHtml}</td> <td>${record.parent_name || ''}</td>
             <td>${record.gender || ''}</td>
             <td>${record.phone || ''}</td>
             <td>${birthDateFormatted || ''}</td>
@@ -213,7 +245,6 @@ function updateTable() {
         tbody.appendChild(row);
     });
 }
-
 /**
  * Applies client-side filtering and search to the records list.
  */
@@ -779,6 +810,7 @@ async function adminResetPassword() {
  * Admin: Fetches and displays the detailed account information for a single user.
  * @param {string} username - The username to view.
  */
+// script.js (Updated function viewUserDetails - Encodes data for safe passing)
 async function viewUserDetails(username) {
     if (!username) return alert("Error: Username missing.");
 
@@ -789,7 +821,6 @@ async function viewUserDetails(username) {
 
     listSection.style.display = 'none';
     detailSection.style.display = 'block';
-    
     detailSection.innerHTML = '<h2>Loading User Details...</h2>'; 
 
     try {
@@ -797,23 +828,26 @@ async function viewUserDetails(username) {
         if (!response.ok) throw new Error('User details not found.');
         
         const user = await response.json();
-        
-        // Correct image source path
         const userPicUrl = user.pic && user.pic.startsWith('http') ? user.pic : `${BASE_URL}/${user.pic}`;
         const finalPicSrc = user.pic ? userPicUrl : 'demo.png'; 
+        
+        // CRITICAL FIX: Encode the entire user object to safely pass it to the edit function
+        const encodedUserData = encodeBase64(JSON.stringify(user)); 
 
-        // 🛑 Render the user details dynamically
+        // RENDER: Default READ-ONLY view using <p> tags
         detailSection.innerHTML = `
             <button onclick="goBackToUserList()" style="float:right; margin-bottom: 20px;">Go Back</button>
             
-            <div style="
-                border: 2px solid #5cb85c; 
-                padding: 20px; 
-                max-width: 400px; 
-                background-color: #f9fff9; 
-                border-radius: 5px;
-                color: #333;
-                box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            <button id="edit-user-btn" onclick="editUserAccount('${user.username}', '${encodedUserData}')" class="btn-primary" style="float:right; margin-bottom: 20px; margin-right: 10px;">
+                📝 Edit Details
+            </button>
+            <button id="save-user-btn" onclick="saveUserAccount('${user.username}')" class="btn-approve" style="float:right; margin-bottom: 20px; margin-right: 10px; display: none;">
+                💾 Save Changes
+            </button>
+            
+            <div id="user-detail-form-card" style="
+                border: 2px solid #5cb85c; padding: 20px; max-width: 400px; background-color: #f9fff9; 
+                border-radius: 5px; color: #333; box-shadow: 0 0 5px rgba(0,0,0,0.1);
             ">
                 <h3 style="margin-top: 0; border-bottom: 1px solid #5cb85c; padding-bottom: 10px; color: #333;">
                     Account Details
@@ -824,16 +858,20 @@ async function viewUserDetails(username) {
                     <img src="${finalPicSrc}" alt="${user.name} Profile Pic" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; margin-top: 5px;">
                 </div>
 
-                <p><strong>Username:</strong> ${user.username}</p>
-                <p><strong>Name:</strong> ${user.name || 'N/A'}</p>
-                <p><strong>Role:</strong> ${user.role}</p>
-                <p><strong>Status:</strong> <span style="color: ${user.is_active ? 'green' : 'red'}; font-weight: bold;">${user.is_active ? 'Active' : 'Disabled'}</span></p>
+                <p><strong>Username (Read-Only):</strong> ${user.username}</p>
+                <p><strong>Role:</strong> <span style="font-weight: bold; color: ${user.role === 'admin' ? 'red' : 'green'};">${user.role.toUpperCase()}</span></p>
+                
                 <hr style="border: 0; border-top: 1px dashed #ccc;">
                 
-                <p><strong>Badge No:</strong> ${user.badge_no || 'N/A'}</p>
-                <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
-                <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
-                <p><strong>Address:</strong> ${user.address || 'N/A'}</p>
+                <div id="editable-fields-container"> 
+                    <p><strong>Badge No:</strong> <span class="editable-value" id="badgeNo-display">${user.badge_no || 'N/A'}</span></p>
+                    <p><strong>Name:</strong> <span class="editable-value" id="name-display">${user.name || 'N/A'}</span></p>
+                    <p><strong>Phone:</strong> <span class="editable-value" id="phone-display">${user.phone || 'N/A'}</span></p>
+                    <p><strong>Email:</strong> <span class="editable-value" id="email-display">${user.email || 'N/A'}</span></p>
+                    <p><strong>Address:</strong> <span class="editable-value" id="address-display">${user.address || 'N/A'}</span></p>
+                </div>
+                
+                <p><strong>Status:</strong> <span style="color: ${user.is_active ? 'green' : 'red'}; font-weight: bold;">${user.is_active ? 'Active' : 'Disabled'}</span></p>
                 <p><strong>Last Login:</strong> ${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</p>
             </div>
         `;
@@ -845,6 +883,121 @@ async function viewUserDetails(username) {
             <p style="color: red;">${error.message}</p>
             <button onclick="goBackToUserList()">Go Back</button>
         `;
+    }
+}
+
+// script.js (New functions for Admin User Edit)
+
+/**
+ * Admin: Toggles the user detail view into editable mode.
+ * @param {string} username - The username being edited.
+ */
+function editUserAccount(username, encodedUserData) {
+    const container = document.getElementById('editable-fields-container');
+    if (!container) return;
+    
+    let userData;
+    try {
+        // Decode the Base64 string and parse JSON to get the user object
+        userData = JSON.parse(decodeBase64(encodedUserData));
+    } catch (e) {
+        console.error("Error decoding user data for edit:", e);
+        return alert("Failed to load user data for editing. Check console.");
+    }
+
+    // Map the fields we want to edit
+    const fields = [
+        { key: 'badge-no', label: 'Badge No:', type: 'text', value: userData.badge_no || '' },
+        { key: 'name', label: 'Name:', type: 'text', value: userData.name || '' },
+        { key: 'phone', label: 'Phone:', type: 'text', value: userData.phone || '', maxlength: 10 },
+        { key: 'email', label: 'Email:', type: 'email', value: userData.email || '' },
+        { key: 'address', label: 'Address:', type: 'text', value: userData.address || '' }
+    ];
+
+    let editableHtml = '';
+    
+    fields.forEach(field => {
+        // Use hyphens in ID for consistency (e.g., edit-badge-no)
+        const inputId = `edit-${field.key}`; 
+        
+        editableHtml += `
+            <div class="form-group" data-key="${field.key}">
+                <label for="${inputId}">${field.label}</label>
+                <input type="${field.type}" 
+                       id="${inputId}" 
+                       value="${field.value}"
+                       ${field.maxlength ? `maxlength="${field.maxlength}"` : ''} 
+                       style="background-color: #fff8e1; border: 1px solid #007bff;">
+            </div>
+        `;
+    });
+
+    // Replace the read-only P tags with the editable HTML inputs
+    container.innerHTML = editableHtml;
+
+    // 2. Buttons ko switch karna
+    const editBtn = document.getElementById('edit-user-btn');
+    const saveBtn = document.getElementById('save-user-btn');
+    
+    if (editBtn) editBtn.style.display = 'none';
+    if (saveBtn) saveBtn.style.display = 'block';
+}
+
+/**
+ * Admin: Saves the updated user account details via API call.
+ * @param {string} username - The username being saved.
+ */
+async function saveUserAccount(username) {
+    // CRITICAL FIX: Use the correct IDs rendered in the editUserAccount function
+    const badgeNo = document.getElementById('edit-badge-no')?.value.trim();
+    const name = document.getElementById('edit-name')?.value.trim().toUpperCase(); // Name must be uppercase
+    const phone = document.getElementById('edit-phone')?.value.trim();
+    const email = document.getElementById('edit-email')?.value.trim();
+    const address = document.getElementById('edit-address')?.value.trim();
+    const updatedBy = getLoggedInUsername();
+
+    // ERROR CHECK: If any input is null, it means the structure is wrong or the user exited edit mode.
+    if (!document.getElementById('edit-badge-no') || !document.getElementById('edit-name')) {
+        // Fallback: Reload the read-only view and alert
+        alert('Error: Could not find editable fields. Reloading view.');
+        viewUserDetails(username); 
+        return;
+    }
+
+    // Basic Validation
+    if (!badgeNo || !name || !email) {
+        return alert('Badge No, Name, and Email are required.');
+    }
+    if (phone && !/^\d{10}$/.test(phone)) {
+        return alert('Phone number must be 10 digits.');
+    }
+
+    if (!confirm(`Confirm: Save changes for user ${username}?`)) {
+        // Agar cancel kiya, toh view ko refresh kar do
+        viewUserDetails(username); 
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/users/${username}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ badgeNo, name, phone, email, address, updatedBy })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`User ${username} details updated successfully!`);
+            // Reload the detail view in read-only mode (This re-renders the component)
+            viewUserDetails(username); 
+        } else {
+            alert(`Update Failed: ${result.message}`);
+            viewUserDetails(username); // Reload on failure
+        }
+    } catch (error) {
+        console.error('Error saving user details:', error);
+        alert('Network error while saving changes. Check console.');
     }
 }
 
@@ -922,8 +1075,7 @@ function renderLogsTable(logs, container) {
         });
 
         tableHTML += `
-            <tr>
-                <td>${logDate}</td>
+            <tr onclick="viewLogDetails(${log.log_id})" style="cursor: pointer;" title="Click to view full snapshot"> <td>${logDate}</td>
                 
                 <td>${log.actor_username || 'SYSTEM'}</td> 
                 
@@ -935,7 +1087,6 @@ function renderLogsTable(logs, container) {
             </tr>
         `;
     });
-
     tableHTML += '</tbody></table>';
     container.innerHTML = tableHTML;
 }
@@ -948,16 +1099,88 @@ function refreshLogs() {
     viewLogs(); // Re-run the main function
 }
 
+/**
+ * Admin: Fetches and displays the full snapshot for a log entry.
+ * @param {number} logId - The ID of the log entry.
+ */
+async function viewLogDetails(logId) {
+    if (!logId) return;
+
+    const container = document.getElementById('view-logs-section');
+    const logList = document.getElementById('logs-list-container');
+    
+    // Create or retrieve the detail container
+    let detailDiv = document.getElementById('log-detail-container');
+    if (!detailDiv) {
+        detailDiv = document.createElement('div');
+        detailDiv.id = 'log-detail-container';
+        container.appendChild(detailDiv);
+    }
+
+    logList.style.display = 'none';
+    detailDiv.style.display = 'block';
+    detailDiv.innerHTML = `<h3>Loading Log Detail #${logId}...</h3>`;
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/logs/${logId}`);
+        if (!response.ok) throw new Error('Log not found.');
+        const log = await response.json();
+        
+        let snapshotHtml = 'Snapshot not available for this action type.';
+        if (log.record_snapshot) {
+            try {
+                // Parse the JSON string for clean display
+                const snapshot = JSON.parse(log.record_snapshot); 
+                snapshotHtml = `<pre style="white-space: pre-wrap; background-color: #f4f4f4; padding: 15px; border-radius: 5px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto;">${JSON.stringify(snapshot, null, 2)}</pre>`;
+            } catch (e) {
+                snapshotHtml = `Invalid Snapshot Data (Not JSON): ${log.record_snapshot}`;
+            }
+        }
+        
+        detailDiv.innerHTML = `
+            <button onclick="goBackToLogsList()" style="float:right; margin-bottom: 10px;">⬅️ Back to Logs</button>
+            <h3>Audit Log Details (ID: ${log.log_id})</h3>
+            <p><strong>Timestamp:</strong> ${new Date(log.log_timestamp).toLocaleString()}</p>
+            <p><strong>Action Type:</strong> <span class="log-type log-type-${log.action_type.toLowerCase().replace(/ /g, '-')}">${log.action_type}</span></p>
+            <p><strong>Actor:</strong> ${log.actor_username}</p>
+            <p><strong>Target Badge/User:</strong> ${log.target_badge_no || 'N/A'}</p>
+            <p><strong>Tracking ID:</strong> ${log.tracking_id || 'N/A'}</p>
+            <p><strong>Reason/Note:</strong> ${log.submission_reason || 'N/A'}</p>
+            
+            <h4 style="margin-top: 20px;">Record Snapshot at Time of Action:</h4>
+            ${snapshotHtml}
+        `;
+
+    } catch (error) {
+        console.error('Error fetching log details:', error);
+        detailDiv.innerHTML = `<h3>Error loading log details.</h3>
+                                <p style="color: red;">${error.message}</p>
+                                <button onclick="goBackToLogsList()">Back to Logs</button>`;
+    }
+}
+
+/**
+ * Helper function to switch back to the main logs list view.
+ */
+function goBackToLogsList() {
+    const logList = document.getElementById('logs-list-container');
+    const detailDiv = document.getElementById('log-detail-container');
+    
+    if (logList) logList.style.display = 'block';
+    if (detailDiv) detailDiv.style.display = 'none';
+    
+    // Re-run viewLogs to ensure filters are maintained
+    viewLogs();
+}
+
 // ====================================================
 // --- 8. MEMBER CRUD & MODERATION LOGIC ---
 // ====================================================
 
 // --- ACTION BUTTON HANDLERS (ADMIN/USER) ---
 
-/**
- * Shows the dedicated detail/action page for a specific member.
- * @param {string} badgeNo - The badge number of the member.
- */
+// script.js (Updated function showMemberActions - Around line 700)
+
 async function showMemberActions(badgeNo) {
     if (!badgeNo) {
         alert("Error: Badge Number missing for action.");
@@ -975,6 +1198,10 @@ async function showMemberActions(badgeNo) {
         console.error(`CRITICAL: Member detail section (${detailSectionId}) is missing in HTML.`);
         return;
     }
+
+    // NEW LOGIC: Check for Pending Status (Requires PENDING_BADGES Set from Feature 5)
+    // NOTE: If you haven't implemented PENDING_BADGES yet, this will always be false.
+    const hasPendingRequest = PENDING_BADGES.has(badgeNo); 
 
     // UI Switch
     role === 'admin' ? showAdminSection(detailSectionId) : showUserSection(detailSectionId);
@@ -996,6 +1223,21 @@ async function showMemberActions(badgeNo) {
         const imageSrc = record.pic && record.pic.startsWith('http') && record.pic !== 'demo.png'
             ? record.pic
             : 'demo.png';
+
+        // Conditional Button for Viewing Pending Details
+        const pendingDetailButton = hasPendingRequest ? 
+            // This button calls the new function viewPendingRequestDetails
+            `
+            <button onclick="viewPendingRequestDetails('${record.badge_no}')" class="btn-primary" style="background-color: orange; margin-bottom: 10px;">
+                🔍 View Pending Request Details
+            </button>
+            ` 
+            : '';
+            
+        // Conditional Status Display
+        const statusDisplay = hasPendingRequest 
+            ? '<span style="color: orange; font-weight: bold;">⚠️ Under Moderation Review</span>' 
+            : '<span style="color: green;">✅ Active Record</span>';
             
         // Populate HTML Section
         detailSection.innerHTML = `
@@ -1007,6 +1249,7 @@ async function showMemberActions(badgeNo) {
                 
                 <div>
                     <p><strong>Badge No:</strong> ${record.badge_no}</p>
+                    <p><strong>Status:</strong> ${statusDisplay}</p>
                     <p><strong>Parent:</strong> ${record.parent_name || 'N/A'}</p>
                     <p><strong>Phone:</strong> ${record.phone || 'N/A'}</p>
                     <p><strong>Birth Date:</strong> ${formatDateDDMMYYYY(record.birth_date)} (Age: ${calculateAge(formatDateDDMMYYYY(record.birth_date))})</p>
@@ -1015,10 +1258,11 @@ async function showMemberActions(badgeNo) {
             </div>
             <hr>
             <h3>Actions:</h3>
-            <button onclick="editMember('${record.badge_no}')">
+            
+            ${pendingDetailButton}  <button onclick="editMember('${record.badge_no}')">
                 ${role === 'admin' ? 'Update Record' : 'Submit Update Request'}
             </button>
-            <button onclick="deleteMember('${record.badge_no}')" class="delete-btn">
+            <button onclick="deleteMember('${record.badge_no}')" class="btn-delete" style="margin-left: 10px;">
                 ${role === 'admin' ? 'Delete Record' : 'Submit Delete Request'}
             </button>
         `;
@@ -1698,8 +1942,21 @@ async function viewRequestDetails(requestId) {
             }
         }
 
-        // Render the details
-        renderRequestDetails(request, originalRecord, detailContainer);
+        // --- NEW STEP: Fetch Request History ---
+        let history = [];
+        try {
+            const historyResponse = await fetch(`${BASE_URL}/api/request-history/${targetBadge}`);
+            if (historyResponse.ok) {
+                 history = await historyResponse.json();
+            }
+            // Note: If request history is empty, it returns an empty array, which is fine.
+        } catch (e) {
+            console.warn("Could not fetch request history:", e);
+        }
+        // --- END NEW STEP ---
+
+        // Render the details (Call renderRequestDetails with history)
+        renderRequestDetails(request, originalRecord, detailContainer, history); // <--- Pass history as the 4th argument
 
     } catch (error) {
         console.error('Error fetching request details:', error);
@@ -1714,7 +1971,7 @@ async function viewRequestDetails(requestId) {
  * @param {object} originalRecord - The existing record from the 'persons' table.
  * @param {HTMLElement} container - The container element.
  */
-function renderRequestDetails(request, originalRecord, container) {
+function renderRequestDetails(request, originalRecord, container, history) {
     const requestedData = request.requested_data; 
     const originalReason = request.submission_reason;
     
@@ -1757,6 +2014,49 @@ function renderRequestDetails(request, originalRecord, container) {
     const mainBoxBorderColor = isDelete ? 'red' : (isUpdate ? 'red' : 'green');
     const mainBoxBgColor = isDelete ? '#fff0f0' : (isUpdate ? '#fff0f0' : '#f9fff9');
     const mainBoxHeaderColor = isDelete ? 'red' : (isUpdate ? 'red' : 'green');
+
+    // --- NEW: History Rendering Logic ---
+    let historyHtml = '';
+    // Filter out the current pending request from the history list for cleaner display
+    const filteredHistory = history.filter(item => item.request_id !== request.request_id);
+
+    if (filteredHistory && filteredHistory.length > 0) {
+        historyHtml = `
+            <div style="margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 15px;">
+                <h4 style="color: #007bff;">History of Requests for Badge No. ${request.target_badge_no} (${filteredHistory.length} total processed)</h4>
+                <ul style="list-style: none; padding: 0;">
+                    ${filteredHistory.map(item => {
+                        const statusColor = item.request_status === 'Approved' ? 'green' : 'red';
+                        const statusIcon = item.request_status === 'Approved' ? '✅' : '❌';
+                        
+                        return `
+                            <li onclick="showHistoryDetail(${item.request_id})" 
+                                style="margin-bottom: 8px; padding-left: 10px; border-left: 4px solid ${statusColor}; 
+                                       background-color: #f9f9f9; padding: 5px; cursor: pointer;" 
+                                title="Click to view full detail of this ${item.request_type} request"> 
+                                
+                                <strong>${statusIcon} ${item.request_type}</strong> (ID: ${item.request_id})
+                                <span style="float: right; font-size: 12px; color: #666;">
+                                    Submitted: ${new Date(item.submission_timestamp).toLocaleDateString()}
+                                </span>
+                                <br>
+                                By: ${item.requester_username}. Status: <strong style="color: ${statusColor};">${item.request_status}</strong>
+                                <br>
+                                *Reason: ${item.submission_reason.substring(0, 50)}...*
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            </div>
+        `;
+    } else {
+        historyHtml = `
+             <div style="margin-top: 20px; padding: 10px; border: 1px dashed green; background-color: #f0fff0;">
+                <p style="margin: 0; font-weight: bold;">No previous moderation history found for this badge number.</p>
+            </div>
+        `;
+    }
+    // --- END NEW: History Rendering Logic ---
 
 
     container.innerHTML = `
@@ -1841,10 +2141,197 @@ function renderRequestDetails(request, originalRecord, container) {
         <p style="padding: 10px; background-color: #eee; border-radius: 3px;">${originalReason || 'No reason provided.'}</p>
         
         <div class="action-buttons-final" style="margin-top: 30px; text-align: center;">
+        ${historyHtml} <div class="action-buttons-final" style="margin-top: 30px; text-align: center;">
             <button onclick="approveRequest(${request.request_id})" class="btn-approve btn-lg">APPROVE & EXECUTE</button>
             <button onclick="rejectRequest(${request.request_id})" class="btn-reject btn-lg" style="margin-left: 15px;">REJECT</button>
         </div>
     `;
+}
+
+async function showHistoryDetail(requestId) {
+    if (!requestId) return;
+    
+    // Use the same container as the current pending request detail
+    const detailContainer = document.getElementById('request-details-view');
+    if (!detailContainer) return console.error("Request Detail container missing.");
+
+  // Store current content to restore later
+    const originalContent = detailContainer.innerHTML; 
+    
+    // UI Update
+    detailContainer.innerHTML = '<h2>Loading Past Request Details...</h2>';
+    
+    try {
+        // Fetch the full historical request details (including requested_data snapshot)
+        const response = await fetch(`${BASE_URL}/api/request/${requestId}`);
+        if (!response.ok) throw new Error('History request details not found.');
+        
+        const pastRequest = await response.json();
+        
+        // Data for display
+        const requestedData = pastRequest.requested_data;
+        const recordType = pastRequest.request_type;
+        const status = pastRequest.request_status;
+
+        // Determine if it was an UPDATE/DELETE, as it affects what original data we show
+        const isUpdate = recordType === 'UPDATE';
+        let originalRecord = null;
+
+        if (recordType !== 'ADD' && pastRequest.target_badge_no && status === 'Approved') {
+            // Note: If Approved, the change is applied. To see the *original* state 
+            // before this historical update, we would need to check the log snapshot 
+            // right before this historical request's approval log entry.
+            // For simplicity, we just check the current status in the DB.
+             
+            // OPTIONAL: For a more robust view, we could fetch the current record, 
+            // but for historical accuracy, we will focus on the details from the request itself.
+        }
+
+        // Generate dynamic HTML for the historical view
+        detailContainer.innerHTML = `
+            <button onclick="restorePendingRequestView('${encodeBase64(originalContent)}')" style="float:right; margin-bottom: 20px;" class="btn-secondary">
+                ⬅️ Back to Pending Review
+            </button>
+            <h2 style="color: ${status === 'Approved' ? 'green' : 'red'};">${status.toUpperCase()} Request Detail (ID: ${requestId})</h2>
+            <p><strong>Tracking ID:</strong> ${pastRequest.tracking_id}</p>
+            <p><strong>Request Type:</strong> ${recordType}</p>
+            <p><strong>Target Badge:</strong> ${pastRequest.target_badge_no}</p>
+            <p><strong>Submitted By:</strong> ${pastRequest.requester_username} on ${new Date(pastRequest.submission_timestamp).toLocaleString()}</p>
+            <p><strong>Status:</strong> <strong style="color: ${status === 'Approved' ? 'green' : 'red'};">${status}</strong></p>
+            <p><strong>Processed By:</strong> ${pastRequest.approver_username || 'N/A'}</p>
+            <p><strong>Reason for Submission:</strong> ${pastRequest.submission_reason}</p>
+            
+            <hr>
+            <h4>Requested Data Snapshot (${recordType}):</h4>
+            <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+${JSON.stringify(requestedData, null, 2)}
+            </pre>
+            
+            ${pastRequest.rejection_reason ? 
+                `<h4 style="color: red;">Rejection Reason:</h4><p>${pastRequest.rejection_reason}</p>` 
+                : ''}
+        `;
+
+  } catch (error) {
+        console.error('Error fetching historical request details:', error);
+        // Fallback button update: Use the new encoder function
+        detailContainer.innerHTML = `<h2>Error loading history details.</h2>
+                                     <p style="color: red;">${error.message}</p>
+                                     <button onclick="restorePendingRequestView('${encodeBase64(originalContent)}')" class="btn-secondary">
+                                         Back to Pending Review
+                                     </button>`; // <--- CRITICAL CHANGE: Use encodeBase64()
+    }
+}
+
+/**
+ * Restores the view of the original pending request.
+ * Uses Base64 encoding to pass the large HTML string safely.
+ * @param {string} encodedContent - Base64 encoded HTML string of the original view.
+ */
+function restorePendingRequestView(encodedContent) {
+    const detailContainer = document.getElementById('request-details-view');
+    if (detailContainer) {
+        try {
+            const decodedContent = decodeBase64(encodedContent); // <--- CRITICAL CHANGE: Use decodeBase64()
+            detailContainer.innerHTML = decodedContent;
+        } catch (e) {
+            console.error("Error decoding content, forcing refresh:", e);
+            // Fallback: If decoding fails, force reload the list
+            loadPendingRequests(); 
+        }
+    }
+}
+
+/**
+ * User/General Admin: Fetches and displays the read-only details of the pending request 
+ * for a specific badge number in a simple alert/modal.
+ * @param {string} badgeNo - The target badge number.
+ */
+async function viewPendingRequestDetails(badgeNo) {
+    if (!badgeNo) return;
+    
+    // Determine the correct section based on the user's role
+    const detailContainer = document.getElementById(CURRENT_USER.role === 'admin' ? 'member-detail-section' : 'user-member-detail-section');
+    if (!detailContainer) return;
+    
+    // Store original HTML to restore it later (using the safe UTF-8 encoder)
+    const originalHTML = detailContainer.innerHTML;
+    
+    // Display loading state
+    detailContainer.innerHTML = '<h2>Loading Pending Request Details...</h2>';
+    
+    try {
+        // 1. Fetch the Request ID (using the API from the previous planning step)
+        let response = await fetch(`${BASE_URL}/api/pending-request-id/${badgeNo}`);
+        if (!response.ok) {
+            detailContainer.innerHTML = `<h2>No Pending Request</h2><p>For Badge No. ${badgeNo}.</p><button onclick="restoreMemberActionsView('${encodeBase64(originalHTML)}')" class="btn-secondary">Back to Actions</button>`;
+            return;
+        }
+        const { requestId } = await response.json();
+
+        // 2. Fetch the Full Request Details
+        response = await fetch(`${BASE_URL}/api/request/${requestId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch request details.');
+        }
+        const request = await response.json();
+        const requestedData = request.requested_data;
+
+        // 3. Generate HTML View
+        detailContainer.innerHTML = `
+            <button onclick="restoreMemberActionsView('${encodeBase64(originalHTML)}')" style="float:right; margin-bottom: 20px;" class="btn-secondary">
+                ⬅️ Back to Actions
+            </button>
+            <h2 style="color: orange;">Pending Request Details</h2>
+            <p>This request is currently waiting for Administration approval.</p>
+            <hr>
+            
+            <div style="background-color: #fff8e1; border: 1px solid #ffecb3; padding: 20px; border-radius: 5px;">
+                <h4>Request Metadata:</h4>
+                <p><strong>Tracking ID:</strong> ${request.tracking_id}</p>
+                <p><strong>Request ID:</strong> ${request.request_id}</p>
+                <p><strong>Request Type:</strong> <strong style="color: orange;">${request.request_type}</strong></p>
+                <p><strong>Submitted By:</strong> ${request.requester_username}</p>
+                <p><strong>Submitted On:</strong> ${new Date(request.submission_timestamp).toLocaleString()}</p>
+                <p><strong>Reason:</strong> ${request.submission_reason || 'N/A'}</p>
+            </div>
+
+            <h4 style="margin-top: 20px;">Requested Data/Changes:</h4>
+            <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+${JSON.stringify(requestedData, null, 2)}
+            </pre>
+            
+            <button onclick="restoreMemberActionsView('${encodeBase64(originalHTML)}')" class="btn-secondary">Back to Actions</button>
+        `;
+
+    } catch (error) {
+        console.error('Error in viewPendingRequestDetails:', error);
+        detailContainer.innerHTML = `<h2>Error loading details.</h2>
+                                     <p style="color: red;">Failed to fetch request details due to an error.</p>
+                                     <button onclick="restoreMemberActionsView('${encodeBase64(originalHTML)}')" class="btn-secondary">Back to Actions</button>`;
+    }
+}
+
+function restoreMemberActionsView(encodedContent) {
+    const detailContainer = document.getElementById(CURRENT_USER.role === 'admin' ? 'member-detail-section' : 'user-member-detail-section');
+    if (detailContainer) {
+        try {
+            const decodedContent = decodeBase64(encodedContent); // Use the UTF-8 safe decoder
+            detailContainer.innerHTML = decodedContent;
+        } catch (e) {
+            console.error("Error decoding content, attempting simple restore:", e);
+            // Fallback: If decoding fails, try to re-render the action view
+            const badgeNoMatch = decodedContent.match(/Badge No:\s*(AM-\d+)/);
+            if (badgeNoMatch && badgeNoMatch[1]) {
+                // Re-render the actions for the badge number found in the decoded content
+                showMemberActions(badgeNoMatch[1]);
+            } else {
+                 // Final fallback
+                alert("Could not restore previous view. Returning to main list.");
+                CURRENT_USER.role === 'admin' ? showAdminSection('view-section') : showUserSection('user-view-section');
+            }
+        }
+    }
 }
 
 /**
@@ -1972,6 +2459,69 @@ async function fetchAndRenderUserRequests() {
     } catch (error) {
         console.error('Error fetching user requests:', error);
         container.innerHTML = '<h2>Error loading your requests. Server or Network issue.</h2>';
+    }
+}
+
+/**
+ * Admin/User: Fetches and displays the current user's profile details.
+ */
+async function viewMyProfile() {
+    const username = getLoggedInUsername();
+    if (!username || username === 'UNKNOWN') return alert("Error: User not logged in.");
+
+    // Select the correct container based on the user's role
+    const containerId = CURRENT_USER.role === 'admin' ? 'admin-profile-details' : 'user-profile-details'; // <--- Yahan 'user' ke liye select hoga
+    const detailContainer = document.getElementById(containerId);
+    
+    if (!detailContainer) return;
+    
+    detailContainer.innerHTML = '<h2>Loading My Profile...</h2>'; 
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/user/${username}`); 
+        if (!response.ok) throw new Error('Profile details not found.');
+        
+        const user = await response.json();
+        
+        // Correct image source path
+        const userPicUrl = user.pic && user.pic.startsWith('http') ? user.pic : `${BASE_URL}/${user.pic}`;
+        const finalPicSrc = user.pic ? userPicUrl : 'demo.png'; 
+        
+        // Determine the ID for the Change Password button link
+        const changePasswordSectionId = CURRENT_USER.role === 'admin' ? 'admin-settings-section' : 'user-change-password-section';
+        const sectionFunction = CURRENT_USER.role === 'admin' ? 'showAdminSection' : 'showUserSection';
+
+        // Render the user details dynamically
+        detailContainer.innerHTML = `
+            <div class="form-card" style="max-width: 500px; padding: 25px;">
+                <h3 style="margin-top: 0;">Account and Member Information</h3>
+
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <p style="margin: 0; font-weight: bold;">Picture:</p>
+                    <img src="${finalPicSrc}" alt="${user.name} Profile Pic" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #000; margin-top: 5px;">
+                </div>
+
+                <p><strong>Username:</strong> ${user.username}</p>
+                <p><strong>Role:</strong> <strong style="color: ${user.role === 'admin' ? 'red' : 'green'};">${user.role ? user.role.toUpperCase() : 'N/A'}</strong></p>
+                <p><strong>Status:</strong> <span style="color: ${user.is_active ? 'green' : 'red'}; font-weight: bold;">${user.is_active ? 'Active' : 'Disabled'}</span></p>
+                <hr style="border: 0; border-top: 1px dashed #ccc;">
+                
+                <h4>Linked Member Data:</h4>
+                <p><strong>Name:</strong> ${user.name || 'N/A'}</p>
+                <p><strong>Badge No:</strong> ${user.badge_no || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
+                <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                <p><strong>Address:</strong> ${user.address || 'N/A'}</p>
+                <p><strong>Last Login:</strong> ${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</p>
+            </div>
+            
+            <button onclick="${sectionFunction}('${changePasswordSectionId}')" class="btn-primary" style="margin-top: 20px;">Change Password</button>
+        `;
+
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        detailContainer.innerHTML = `<h2>Error loading profile details.</h2>
+                                     <p style="color: red;">${error.message}</p>`;
     }
 }
 
