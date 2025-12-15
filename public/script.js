@@ -17,6 +17,7 @@ let ALL_SYSTEM_LOGS = [];
 let PENDING_BADGES = new Set(); // <--- ADD THIS NEW SET VARIABLE
 let currentSortState = { key: 'name', direction: 'ASC' };
 
+
 /**
  * Encodes a string (including Unicode/UTF-8 characters) to a safe Base64 string.
  * This function bypasses the Latin1 limitation of btoa().
