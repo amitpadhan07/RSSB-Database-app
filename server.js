@@ -6,7 +6,10 @@ const path = require('path');
 const multer = require('multer');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+
+
 
 // CLOUDINARY IMPORTS
 const cloudinary = require('cloudinary').v2;
@@ -14,10 +17,10 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // --- 1. DATABASE CONFIGURATION (Secured) ---
 const pool = new Pool({
-    // Uses the DATABASE_URL from .env or process.env (e.g., set by Render)
     connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false
@@ -58,6 +61,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/image', express.static(path.join(__dirname, 'public/image')));
+app.get('/reset-password', (req, res) => {
+    // Note: We use the full filename and pass the query string
+    res.redirect(`/reset-password.html${req._parsedUrl.search || ''}`);
+});
 
 // --- HELPER FUNCTIONS ---
 
@@ -114,37 +121,41 @@ function generateRandomPassword(length = 12) {
  */
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    
     try {
-        // 1. Fetch ALL user data (active or disabled)
-        const userResult = await pool.query(
-            "SELECT password, role, is_active, badge_no FROM users WHERE username = $1",
-            [username]
+        // 1. Fetch user data (including the HASHED password and active status)
+        const userQuery = await pool.query(
+            "SELECT badge_no, username, role, password, is_active FROM users WHERE username = $1", 
+            [username] 
         );
 
-        if (userResult.rows.length === 0) {
-            // User not found
+        if (userQuery.rows.length === 0) {
+            // User not found, return generic error for security
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
-        
-        const user = userResult.rows[0];
 
-        // 2. CRITICAL CHECK: Block disabled users IMMEDIATELY after fetch
-        if (user.is_active === false) {
-             console.log(`[BLOCKED] Disabled user attempt: ${username}`);
-             return res.status(403).json({ success: false, message: 'Account is disabled. Contact administrator.' }); 
-        }
-
+        const user = userQuery.rows[0];
         const storedHash = user.password;
         
-        // 3. Verify the password hash (Only for active users)
-        const isMatch = await bcrypt.compare(password, storedHash);
+        // 2. Check if the user is ACTIVE
+        if (user.is_active === false) {
+             // Specific error message for disabled users
+             return res.status(403).json({ success: false, message: 'Your account is currently disabled. Please contact the administrator.' });
+        }
 
-        if (isMatch) {
-            
-            // Update last_login timestamp
-            await pool.query("UPDATE users SET last_login = NOW() WHERE username = $1", [username]);
-            
-            res.json({ success: true, message: 'Login successful!', role: user.role });
+        // 3. Verify the password hash using Bcrypt
+        const passwordMatch = await bcrypt.compare(password, storedHash);
+
+        if (passwordMatch) {
+            // 4. Update last_login timestamp (non-critical, fire-and-forget logging update)
+            await pool.query(
+                "UPDATE users SET last_login = NOW() WHERE username = $1",
+                [username]
+            );
+
+            // 5. Success response
+            const userRole = user.role;
+            res.json({ success: true, message: 'Login successful!', role: userRole });
         } else {
             // Password mismatch
             res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -712,9 +723,10 @@ app.get('/api/search', async (req, res) => {
  * Admin creates a new user account, linked to a member in `persons`, with logging.
  */
 app.post('/api/users/add', async (req, res) => {
-    const { username, password, role, addedBy, badgeNo, email } = req.body;
+    
+    const { username, role, addedBy, badgeNo, email } = req.body; 
 
-    if (!badgeNo || !username || !password || !role || !addedBy || !email) {
+    if (!badgeNo || !username || !role || !addedBy || !email) {
         return res.status(400).json({ success: false, message: 'Missing mandatory user fields.' });
     }
     
@@ -741,9 +753,10 @@ app.post('/api/users/add', async (req, res) => {
 
         const memberData = memberResult.rows[0];
 
-        // 3. Hash the password
+        // 3. GENERATE AND HASH THE RANDOM PASSWORD 
+        const generatedPassword = generateRandomPassword(12); // Generate plain text password
         const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const hashedPassword = await bcrypt.hash(generatedPassword, saltRounds); // Hash the password
 
         // 4. Insert into the users table
         const result = await pool.query(
@@ -757,14 +770,36 @@ app.post('/api/users/add', async (req, res) => {
                 memberData.phone, 
                 role, 
                 username, 
-                hashedPassword,
+                hashedPassword, // Store HASHED password
                 email, 
                 memberData.address 
             ]
         );
 
-        // 5. Logging
-        const newUserData = result.rows[0];
+        const newUserData = result.rows[0]; // CRITICAL: Define newUserData here for email and logging
+
+        // 5. SEND ONBOARDING EMAIL (Use the plain text generated password)
+        const subject = "Welcome to the RSSB Database System!";
+        
+        const emailBody = `Dear ${newUserData.name || username},
+
+A new account has been successfully created for you on the RSSB system by Admin ${addedBy}.
+
+Your credentials are:
+Username: ${username}
+Temporary Password: ${generatedPassword} 
+
+For security purposes, please log in and change your password immediately.
+
+You can log in to your account here: ${FRONTEND_URL || 'https://rssb-rudrapur-database-api.onrender.com'}
+
+Best regards,
+The RSSB Administration Team`;
+        
+        await sendEmailNotification(email, subject, emailBody);
+
+
+        // 6. Logging
         await pool.query(
             `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason)
              VALUES ($1, $2, $3, $4, $5)`,
@@ -773,7 +808,7 @@ app.post('/api/users/add', async (req, res) => {
                 newUserData.badge_no, 
                 JSON.stringify(newUserData),
                 addedBy, 
-                `New user ${username} created with role ${role} and linked to Badge No. ${badgeNo}.`
+                `New user ${username} created with role ${role} and linked to Badge No. ${badgeNo} by ${addedBy}.`
             ]
         );
 
@@ -781,7 +816,7 @@ app.post('/api/users/add', async (req, res) => {
 
         res.status(201).json({ 
             success: true, 
-            message: `User ${username} created successfully.`, 
+            message: `User ${username} created successfully. Login credentials sent to ${email}.`, 
             user: newUserData 
         });
 
@@ -892,7 +927,7 @@ app.post('/api/users/toggle-status', async (req, res) => {
         await pool.query(
             `INSERT INTO logs (action_type, target_badge_no, record_snapshot, actor_username, submission_reason)
              VALUES ($1, $2, $3, $4, $5)`,
-            [action, targetUsername, JSON.stringify(result.rows[0]), updatedBy, `User status set to ${isActive}.`]
+            [action, targetUsername, JSON.stringify(result.rows[0]), updatedBy, `${targetUsername} status set to ${action} by ${updatedBy}.`]
         );
 
         res.json({ success: true, message: `User status updated to ${isActive}` });
@@ -906,39 +941,63 @@ app.post('/api/users/toggle-status', async (req, res) => {
  * POST /api/users/reset-password
  * Admin resets a user's password, updates the DB, sends new credentials via email, and logs the action.
  */
+// server.js
+
+// ... (code above)
+
+/**
+ * POST /api/users/reset-password
+ * Admin resets a user's password, updates the DB with a secure hash, 
+ * sends new credentials via email, and logs the action.
+ */
 app.post('/api/users/reset-password', async (req, res) => {
     const { targetUsername, resetBy } = req.body; 
 
     try {
-        // 1. Fetch user data
-        const userResult = await pool.query(
-            "SELECT email, badge_no FROM users WHERE username = $1", 
+        // 1. Fetch target user data (to get email, badge_no, and name)
+        const targetUserResult = await pool.query(
+            "SELECT email, badge_no, name FROM users WHERE username = $1", 
             [targetUsername]
         );
 
-        if (userResult.rows.length === 0) {
+        if (targetUserResult.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'User not found.' });
         }
         
-        const { email: userEmail, badge_no: userBadgeNo } = userResult.rows[0];
+        // Extract target user details
+        const { 
+            email: userEmail, 
+            badge_no: userBadgeNo, 
+            name: targetUserName 
+        } = targetUserResult.rows[0];
         
         if (!userEmail) {
             return res.status(400).json({ success: false, message: `User's email ID is missing. Cannot send temporary password.` });
         }
+
+        // 1.5. NEW: Fetch the REAL NAME of the Admin (resetBy)
+        const adminResult = await pool.query(
+            "SELECT name FROM users WHERE username = $1",
+            [resetBy]
+        );
+        // Use the Admin's name, or fall back to their username if the name is not found/null
+        const adminName = adminResult.rows[0]?.name || resetBy; 
         
-        // 2. Generate and Hash New Password
+        // 2. Generate and Hash New Password (Code remains unchanged)
         const newPassword = generateRandomPassword(12);
         const hashedPassword = await bcrypt.hash(newPassword, 10); 
 
-        // 3. Database Update
+        // 3. Database Update (Code remains unchanged)
         await pool.query(
             "UPDATE users SET password = $1 WHERE username = $2",
             [hashedPassword, targetUsername]
         );
 
-        // 4. Email User (New Credentials)
+        // 4. Email User (New Credentials) - USING ADMIN NAME
         const subject = "RSSB Account Password Reset Successful (Admin Initiated)";
-        const emailBody = `Dear ${targetUsername},
+        
+        // Use target user's real name in salutation and Admin's real name for 'resetBy'
+        const emailBody = `Dear ${targetUserName || targetUsername},
 
 Your password for the RSSB system has been successfully reset by the administration.
 
@@ -948,7 +1007,7 @@ New Password: ${newPassword}
 
 For security purposes, please ensure you change your password immediately upon logging in to the system.
 
-This action was performed by Admin: ${resetBy}.
+This action was performed by Admin: ${resetBy} (${adminName}).
 Timestamp: ${new Date().toLocaleString()}
 
 ---
@@ -963,11 +1022,11 @@ The RSSB Administration Team`;
         
         await sendEmailNotification(userEmail, subject, emailBody); 
 
-        // 5. Action Log
+        // 5. Action Log (Code remains unchanged)
         await pool.query(
             `INSERT INTO logs (action_type, target_badge_no, actor_username, submission_reason)
              VALUES ($1, $2, $3, $4)`,
-            ['PASSWORD_RESET_ADMIN', userBadgeNo, resetBy, `Password reset by Admin ${resetBy}. New temporary password sent via email to ${userEmail}.`]
+            ['PASSWORD_RESET_ADMIN', userBadgeNo, resetBy, `Password reset by Admin ${resetBy} (${adminName}). New temporary password sent via email to ${userEmail}.`]
         );
 
         res.json({ 
@@ -1029,7 +1088,7 @@ app.get('/api/logs', async (req, res) => {
     let query = `
         SELECT
             log_id, log_timestamp, action_type, actor_username,
-            target_badge_no, submission_reason
+            target_badge_no, submission_reason, tracking_id  -- <--- ADDED tracking_id HERE
         FROM logs
         WHERE 1=1
     `;
@@ -1077,53 +1136,49 @@ app.post('/api/forgot-password', async (req, res) => {
     try {
         await pool.query('BEGIN');
 
-        // 1. Fetch user by identifier
+        // 1. Fetch user by identifier and necessary details 
         const userResult = await pool.query(
-            "SELECT username, email, badge_no, password FROM users WHERE username = $1 OR badge_no = $1", 
+            "SELECT id, username, email, badge_no, name FROM users WHERE username = $1 OR badge_no = $1", 
             [identifier]
         );
 
-        if (userResult.rows.length === 0) {
+        // Security Best Practice: Use a generic message if no user or no email is found
+        if (userResult.rows.length === 0 || !userResult.rows[0].email) {
             await pool.query('COMMIT');
-            // Security Best Practice: Generic success message
-            return res.json({ success: true, message: 'If a matching account exists, recovery instructions have been sent to the registered email.' });
+            return res.json({ success: true, message: 'If a matching account exists, a password reset link has been sent to the registered email.' });
         }
         
         const user = userResult.rows[0];
-        const { username, email, badge_no } = user;
+        const { username, email, badge_no, name } = user; // Use username for token linking
 
-        if (!email) {
-             await pool.query('COMMIT');
-             return res.status(400).json({ success: false, message: `No registered email found for this account. Please contact the administrator.` });
-        }
-        
-        // 2. Generate and Hash New Password
-        const newPlainPassword = generateRandomPassword(12);
-        const hashedPassword = await bcrypt.hash(newPlainPassword, 10); 
+        // 2. Generate a Secure Token and Expiration (e.g., 1 hour)
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires_at = new Date(Date.now() + 3600000);
 
-        // 3. Database Update
+        // 3. Clean up and Save New Token (Using the 'username' column)
+        await pool.query("DELETE FROM password_reset_tokens WHERE username = $1", [username]);
+
         await pool.query(
-            "UPDATE users SET password = $1 WHERE username = $2",
-            [hashedPassword, username]
+            `INSERT INTO password_reset_tokens (username, token, expires_at)
+             VALUES ($1, $2, $3)`,
+            [username, token, expires_at] // Pass username (string)
         );
+        
+        // 4. Email: Send the Reset Link to the user
+        // The reset link now uses 'username'
+        const resetLink = `${FRONTEND_URL}/reset-password?username=${username}&token=${token}`;
+        const subject = "RSSB Account Password Reset Request";
+        
+        const emailBody = `Dear ${name},
 
-        // 4. Email: Send the new temporary password
-        const subject = "RSSB Account Password Reset Successful (Self-Initiated)";
+You requested a password reset for your RSSB system account with username: ${username}..
 
-        const emailBody = `Dear ${username},
+To complete the process and set a new password, please click the link below:
+${resetLink}
 
-Your password for the RSSB system has been successfully reset.
+This link is valid for 1 hour. If you did not request this, please ignore this email.
 
-Please use the following temporary credentials to log in:
-Username: ${username}
-New Password: ${newPlainPassword}
-
-For security purposes, please ensure you change your password immediately upon logging in to the system.
-
-This action was performed by your request (Self-Initiated Reset).
-Timestamp: ${new Date().toLocaleString()}
-
----
+---------
 
 Thank you for using the RSSB system.
 You can log in to your account here: https://rssb-rudrapur-database-api.onrender.com
@@ -1139,21 +1194,96 @@ The RSSB Administration Team`;
         await pool.query(
             `INSERT INTO logs (action_type, target_badge_no, actor_username, submission_reason)
              VALUES ($1, $2, $3, $4)`,
-            ['PASSWORD_RESET_USER', badge_no, username, `User initiated password reset. Temporary password sent to ${email}.`]
+            ['PASSWORD_RESET_REQUESTED', badge_no, username, `User initiated password reset request. Token generated and link sent to ${email}.`]
         );
 
         await pool.query('COMMIT');
 
-        // Return the generic success message
         res.json({ 
             success: true, 
-            message: 'If a matching account exists, recovery instructions have been sent to the registered email.' 
+            message: 'If a matching account exists, a password reset link has been sent to the registered email.' 
         });
 
     } catch (error) {
         await pool.query('ROLLBACK');
-        console.error('Forgot Password backend error:', error);
-        res.status(500).json({ success: false, message: 'Server error during recovery process.' });
+        console.error('Forgot Password backend error (DB or Email failure):', error);
+        
+        // Always return a 200 OK with the generic message on internal failures.
+        res.status(200).json({ 
+             success: true, 
+             message: 'If a matching account exists, a password reset link has been sent to the registered email.' 
+        });
+    }
+});
+
+/**
+ * POST /api/reset-password
+ * Handles the final password update using the token.
+ */
+app.post('/api/reset-password', async (req, res) => {
+    
+    // Expect 'username' in the request body, not 'user_id'
+    const { username, token, newPassword } = req.body; 
+
+    if (!username || !token || !newPassword) {
+        return res.status(400).json({ success: false, message: 'All fields (username, token, new password) are required.' });
+    }
+
+    try {
+        await pool.query('BEGIN');
+
+        // 1. Find and validate the token (Check token, username, and expiry time)
+        const tokenResult = await pool.query(
+            `SELECT * FROM password_reset_tokens 
+             WHERE username = $1 AND token = $2 AND expires_at > NOW()`,
+            [username, token]
+        );
+
+        if (tokenResult.rows.length === 0) {
+            await pool.query('COMMIT');
+            return res.status(400).json({ success: false, message: 'Invalid or expired password reset token.' });
+        }
+        
+        // 2. Hash the New Password
+        const hashedPassword = await bcrypt.hash(newPassword, 10); 
+
+        // 3. Update the User's Password using the username
+        const updateResult = await pool.query(
+            "UPDATE users SET password = $1 WHERE username = $2 RETURNING username, badge_no, email",
+            [hashedPassword, username]
+        );
+
+        if (updateResult.rows.length === 0) {
+             await pool.query('ROLLBACK');
+             return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+        
+        const { badge_no, email } = updateResult.rows[0];
+
+        // 4. Invalidate (Delete) the Used Token using the username
+        await pool.query(
+            "DELETE FROM password_reset_tokens WHERE username = $1",
+            [username]
+        );
+
+        // 5. Log the Action
+        await pool.query(
+            `INSERT INTO logs (action_type, target_badge_no, actor_username, submission_reason)
+             VALUES ($1, $2, $3, $4)`,
+            ['PASSWORD_RESET_COMPLETED', badge_no, username, `Password reset successfully completed using a token.`]
+        );
+        
+        await pool.query('COMMIT');
+
+        res.json({ 
+            success: true, 
+            message: 'Your password has been reset successfully. You can now log in with your new password.' 
+        });
+
+    } catch (error) {
+        await pool.query('ROLLBACK');
+        console.error('Reset Password backend error:', error);
+        res.status(500).json({ success: false, message: 'Server error during password update process.' });
     }
 });
 

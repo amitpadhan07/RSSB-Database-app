@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
+const BASE_URL = 'http://localhost:3000';
 
 // Global user object to store logged-in state (role and username)
 var CURRENT_USER = {}; 
@@ -11,6 +11,8 @@ const database = {
     filteredRecords: [],
     selectedRecords: new Set() // For batch actions
 };
+
+
 
 // Global variable to hold logs data for client-side filtering (Caching)
 let ALL_SYSTEM_LOGS = []; 
@@ -330,15 +332,11 @@ function sortRecords(key, buttonElement) {
 /**
  * Handles the user login process.
  */
+// script.js
+
 async function login() {
-    const username = document.getElementById("username").value.trim();
+    const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
-
-    if (!username || !password) {
-        return alert('Please enter both username and password.');
-    }
-
-    console.log(`[FRONTEND] Attempting login for user: ${username}`);
 
     try {
         const response = await fetch(`${BASE_URL}/api/login`, {
@@ -346,38 +344,40 @@ async function login() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
         });
+        
+        // --- START OF REQUIRED CHANGE ---
+        
+        const result = await response.json();
 
-        const result = await response.json().catch(() => ({ success: false, message: 'Invalid server response' }));
-
-        if (response.ok) {
-            // Successful login
-            CURRENT_USER = { role: result.role, username: username };
-
+        // Check if the HTTP status code indicates success (200-299)
+        if (response.ok) { 
+            // Original success logic
+            CURRENT_USER = { role: result.role, username: username }; 
+            
             document.getElementById("login-screen").style.display = "none";
             alert("Login successful!");
-
-            if (CURRENT_USER.role === 'admin' || CURRENT_USER.role === 'Admin') {
-                document.getElementById("admin-dashboard").style.display = "flex";
-                showAdminSection('view-section');
-            } else {
-                document.getElementById("user-dashboard").style.display = "flex";
-                showUserSection('user-view-section');
+            
+            if (CURRENT_USER.role === 'admin') {
+                document.getElementById("admin-dashboard").style.display = "flex"; 
+                showAdminSection('view-section'); 
+            } else if (CURRENT_USER.role === 'user') {
+                document.getElementById("user-dashboard").style.display = "flex"; 
+                showUserSection('user-view-section'); 
             }
-
-            await initializeDatabase();
-            return;
+            
+            await initializeDatabase(); 
+        } else {
+            // Handle 401 (Invalid Credentials) or 403 (Disabled Account)
+            // The result.message contains the specific error text ("Invalid credentials" 
+            // or "Your account is currently disabled. Please contact the administrator.")
+            alert(result.message);
         }
+        
+        // --- END OF REQUIRED CHANGE ---
 
-        // Disabled account (server returns 403 with disabled message)
-       if (response.status === 403 && result.message && result.message.toLowerCase().includes('disabled')) {
-  return alert('Your account is disabled. Please contact admin.');
-}
-
-        // Other failures
-        alert(result.message || 'Login failed. Check credentials.');
     } catch (error) {
         console.error('Login error:', error);
-        alert('A network error occurred during login. Please try again.');
+        alert('An error occurred during login. Please try again.');
     }
 }
 
@@ -513,21 +513,19 @@ function goBackToUserList() {
 async function adminAddUser() {
     const badgeNo = document.getElementById('add-user-badge').value.trim().toUpperCase();
     const username = document.getElementById('add-user-username').value.trim();
-    const password = document.getElementById('add-user-password').value.trim();
     const role = document.getElementById('add-user-role').value;
     const addedBy = getLoggedInUsername();
     const email = document.getElementById('add-user-email').value.trim();
     
-    if (!badgeNo || !username || !password || !role || !email) {
-        return alert('All fields including Email are required.');
+   if (!badgeNo || !username || !role || !email) {
+        return alert('All fields except Password are required.'); // Updated message
     }
-    if (password.length < 6) return alert('Password must be at least 6 characters long.');
 
     try {
         const response = await fetch(`${BASE_URL}/api/users/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ username, password, role, addedBy, badgeNo, email }) 
+           body: JSON.stringify({ username, role, addedBy, badgeNo, email }) // <-- REMOVE 'password' from body
         });
 
         const result = await response.json();
@@ -743,19 +741,19 @@ async function deleteUser(targetUsername, isCurrentlyActive) {
  * Admin: Resets a user's password and sends new credentials via email.
  */
 async function adminResetPassword() {
+    // Only the target username is needed for the secure backend process.
     const targetUsername = document.getElementById('reset-username').value.trim();
-    // New password input is no longer used for the request body, only the value for the alert/form reset.
-    // The backend now generates the random password.
-    const newPasswordInput = document.getElementById('reset-new-password');
+    // The newPasswordInput is now unnecessary for validation/logic.
     const resetBy = getLoggedInUsername();
 
     if (!targetUsername) return alert('Username is required.');
-    if (!newPasswordInput.value.trim() || newPasswordInput.value.trim().length < 6) return alert('Please enter a new password (min 6 chars) for the record/alert, even though a random one will be used.');
 
-    if (!confirm(`Confirm: Reset password for ${targetUsername}? A new random password will be generated and emailed to the user.`)) return;
+    // Removed the confusing validation for newPasswordInput.
+
+    if (!confirm(`Confirm: Reset password for ${targetUsername}? A new random temporary password will be generated, HASHED, and securely emailed to the user's registered address.`)) return;
 
     try {
-        // NOTE: NewPassword field is sent only for future reference/logging, backend generates the actual password.
+        // The body only needs the targetUsername and the actor (resetBy)
         const response = await fetch(`${BASE_URL}/api/users/reset-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -764,7 +762,8 @@ async function adminResetPassword() {
 
         const result = await response.json();
 
-        if (result.success) {
+        // Ensure we check for non-200 status codes (though this API should only return 200 or 404/500)
+        if (response.ok) {
             alert(`Password successfully reset for user '${targetUsername}'. New temporary password sent via email!`);
             document.getElementById('reset-password-form').reset();
         } else {
@@ -2078,13 +2077,17 @@ async function submitPasswordResetRequest() {
 
         const result = await response.json();
 
-        // Security Best Practice: Generic success message
-        if (response.ok || response.status === 404) { 
-            resetMessageElement.style.color = 'green';
-            resetMessageElement.textContent = `If a matching account exists, a temporary password has been sent to the registered email. Check your spam folder.`;
-        } else {
+        // Check for client-side errors (e.g., 400: Missing identifier)
+        if (response.status >= 400 && response.status < 500) { 
             resetMessageElement.style.color = 'red';
-            resetMessageElement.textContent = `An error occurred: ${result.message || 'Could not process request.'}`;
+            resetMessageElement.textContent = `Request Failed: ${result.message || 'Check your input.'}`;
+        }
+        
+        // FIX: The backend now always returns 200 for success/user-not-found/server-error.
+        else { 
+            resetMessageElement.style.color = '#65e612';
+            // ⭐️ CRITICAL CHANGE HERE ⭐️
+            resetMessageElement.textContent = `If a matching account exists, a password reset link has been sent to the registered email.`;
         }
     } catch (error) {
         console.error('Error submitting password reset:', error);
@@ -2092,12 +2095,110 @@ async function submitPasswordResetRequest() {
         resetMessageElement.textContent = 'A network error occurred. Please try again.';
     } finally {
         if (submitButton) submitButton.disabled = false;
+        // Optionally, remove the identifier immediately, or shorten the timeout.
         setTimeout(() => {
             document.getElementById('reset-identifier').value = '';
-        }, 5000);
+        }, 5000); 
     }
 }
 
+//Retrieves query parameters (username and token) from the URL.
+function getQueryParams() {
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get('username');
+    const token = params.get('token');
+    
+    if (username && token) {
+        return { username, token };
+    }
+    return null;
+}
+
+/**
+ * Validates the reset link parameters and sets up the form inputs.
+ */
+function validateResetLinkAndSetupForm() {
+    const params = getQueryParams();
+    const messageElement = document.getElementById('reset-page-message');
+    const formElement = document.getElementById('new-password-form');
+    
+    if (!params) {
+        messageElement.textContent = 'Invalid reset link. Missing username or token.';
+        messageElement.style.color = 'red';
+        if (formElement) formElement.style.display = 'none';
+        return;
+    }
+    
+    // Store the parameters globally or locally so submit function can use them
+    window.RESET_PARAMS = params; 
+    
+    // Form is shown and inputs are set up.
+    messageElement.textContent = `Ready to set a new password for user: ${params.username}`;
+    messageElement.style.color = '#1a6912;';
+    if (formElement) formElement.style.display = 'block';
+}
+
+/**
+ * Submits the new password along with the token and username to the backend.
+ */
+async function submitNewPassword() {
+    const newPassword = document.getElementById('new-password-input').value.trim();
+    const confirmPassword = document.getElementById('confirm-password-input').value.trim();
+    const messageElement = document.getElementById('reset-page-message');
+    const submitButton = document.getElementById('submit-new-password-btn');
+    const params = window.RESET_PARAMS; 
+
+    // 1. Client-side validation
+    if (!params) return alert("Error: Reset link data is missing. Please try the link again.");
+    if (!newPassword || !confirmPassword || newPassword.length < 6) {
+        messageElement.textContent = "Password must be at least 6 characters long.";
+        messageElement.style.color = 'red';
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        messageElement.textContent = "New passwords do not match.";
+        messageElement.style.color = 'red';
+        return;
+    }
+
+    submitButton.disabled = true;
+    messageElement.textContent = 'Updating password...';
+    messageElement.style.color = 'orange';
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: params.username,
+                token: params.token,
+                newPassword: newPassword,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            messageElement.textContent = result.message;
+            messageElement.style.color = 'green';
+            alert('Password reset successful! Redirecting to login.');
+            // Redirect user back to the main login page after a delay
+            setTimeout(() => {
+                window.location.href = '/index.html'; // Assuming your login page is index.html
+            }, 3000);
+        } else {
+            messageElement.textContent = result.message || 'Reset failed due to server error.';
+            messageElement.style.color = 'red';
+        }
+
+    } catch (error) {
+        console.error('Network Error during password reset:', error);
+        messageElement.textContent = 'A network error occurred. Please try again.';
+        messageElement.style.color = 'red';
+    } finally {
+        submitButton.disabled = false;
+    }
+}
 
 // ====================================================
 // --- BATCH ACTION UTILITIES (Selection) ---

@@ -595,3 +595,57 @@ tr:nth-child(odd) {
         print-color-adjust: exact;
     }
 }
+
+/* ---------- Reset Password Page ---------- */
+
+.reset-wrapper {
+    position: fixed;
+    inset: 0;
+    background: url('login-bg.jpg') no-repeat center center;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.reset-wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.reset-box {
+    width: 360px;
+    max-width: 90%;
+    z-index: 2;
+}
+
+.reset-box h2 {
+    color: #fff;
+    margin-bottom: 15px;
+}
+
+#reset-page-message {
+    color: #ffd966;
+    font-size: 14px;
+}
+
+.reset-box a {
+    color: #ddd;
+    font-size: 14px;
+}
+
+.reset-box a:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+#submit-new-password-btn {
+    background: #000;
+    font-weight: bold;
+}
+
+#submit-new-password-btn:hover {
+    background: #222;
+}
