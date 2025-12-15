@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
+const BASE_URL = 'http://localhost:3000';
 
 // Global user object to store logged-in state (role and username)
 var CURRENT_USER = {}; 
@@ -858,7 +858,7 @@ async function viewUserDetails(username) {
                     <img src="${finalPicSrc}" alt="${user.name} Profile Pic" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; margin-top: 5px;">
                 </div>
 
-                <p><strong>Username (Read-Only):</strong> ${user.username}</p>
+                <p><strong>Username:</strong> ${user.username}</p>
                 <p><strong>Role:</strong> <span style="font-weight: bold; color: ${user.role === 'admin' ? 'red' : 'green'};">${user.role.toUpperCase()}</span></p>
                 
                 <hr style="border: 0; border-top: 1px dashed #ccc;">

@@ -47,14 +47,17 @@ const upload = multer({ storage: storage });
 
 // --- 3. EMAIL TRANSPORT CONFIGURATION (Secured) ---
 const transporter = nodemailer.createTransport({
-    // Use the explicit host and port instead of 'service: "gmail"'
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Set to false when using port 587 (STARTTLS)
-    requireTLS: true,
+    port: 465,       // Keeping the secure port 465
+    secure: true,    // Keeping secure: true
+    
+    // ✅ NEW: Increase timeout to 30 seconds (30000ms)
+    connectionTimeout: 30000, 
+    socketTimeout: 30000,
+    
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        pass: process.env.EMAIL_PASS // MUST be the 16-digit App Password
     }
 });
 
