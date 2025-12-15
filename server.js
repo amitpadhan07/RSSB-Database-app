@@ -47,7 +47,11 @@ const upload = multer({ storage: storage });
 
 // --- 3. EMAIL TRANSPORT CONFIGURATION (Secured) ---
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    // Use the explicit host and port instead of 'service: "gmail"'
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // Set to false when using port 587 (STARTTLS)
+    requireTLS: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -783,7 +787,7 @@ app.post('/api/users/add', async (req, res) => {
         
         const emailBody = `Dear ${newUserData.name || username},
 
-A new account has been successfully created for you on the RSSB system by Admin ${addedBy}.
+A new account has been successfully created for you on the RSSB system by Admin : ${addedBy}.
 
 Your credentials are:
 Username: ${username}

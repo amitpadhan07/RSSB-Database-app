@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
+const BASE_URL = 'http://localhost:3000';
 
 // Global user object to store logged-in state (role and username)
 var CURRENT_USER = {}; 
