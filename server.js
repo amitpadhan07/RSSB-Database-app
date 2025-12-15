@@ -48,19 +48,27 @@ const upload = multer({ storage: storage });
 // --- 3. EMAIL TRANSPORT CONFIGURATION (Secured) ---
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,       // Keeping the secure port 465
-    secure: true,    // Keeping secure: true
-    
-    // ✅ NEW: Increase timeout to 30 seconds (30000ms)
-    connectionTimeout: 30000, 
+    port: 587,          // 🔥 CHANGE
+    secure: false,      // 🔥 CHANGE (TLS)
+    requireTLS: true,
+
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
     socketTimeout: 30000,
-    
+
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS // MUST be the 16-digit App Password
+        pass: process.env.EMAIL_PASS // Gmail App Password
     }
 });
 
+transporter.verify((err, success) => {
+    if (err) {
+        console.error("SMTP VERIFY FAILED:", err);
+    } else {
+        console.log("SMTP READY");
+    }
+});
 
 // --- MIDDLEWARE ---
 app.use(cors());
