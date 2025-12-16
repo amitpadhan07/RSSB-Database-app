@@ -1,0 +1,664 @@
+/* ---------- Global Styles ---------- */
+:root {
+    --primary-color: #000000;
+    --secondary-color: #007bff;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --bg-light: #f8f9fa;
+    --text-dark: #333333;
+    --text-light: #ffffff;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: var(--bg-light);
+    color: var(--text-dark);
+}
+
+a {
+    color: var(--text-light);
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+/* ---------- Login & Forgot Password Screens ---------- */
+#login-screen, #forgot-password-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: url('login-bg.jpg') no-repeat center center;
+    background-size: cover;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 50px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+#login-screen::before, #forgot-password-screen::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1;
+}
+
+.login-box {
+    position: relative;
+    z-index: 2;
+    background-color: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 40px 30px;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    text-align: center;
+    width: 350px;
+    max-width: 90%;
+    transition: all 0.3s ease;
+}
+
+.login-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+.logo {
+    display: block;
+    margin: 0 auto 25px auto;
+    max-width: 120px;
+    height: auto;
+}
+
+.login-box h2 {
+    color: var(--text-light);
+    margin: 10px 0;
+}
+
+.login-box input {
+    width: 100%;
+    padding: 14px;
+    margin: 12px 0;
+    border: none;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    color: var(--text-dark);
+    font-size: 15px;
+    box-sizing: border-box;
+    transition: all 0.3s;
+}
+
+.login-box input:focus {
+    outline: none;
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+
+.login-box button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 15px;
+    border: none;
+    border-radius: 10px;
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.login-box button:hover {
+    background-color: #333;
+    transform: translateY(-2px);
+}
+
+.login-box a {
+    display: block;
+    margin-top: 10px;
+    color: #eee;
+    font-size: 14px;
+}
+
+/* ---------- Responsive Design for Login ---------- */
+@media (max-width: 768px) {
+    #login-screen, #forgot-password-screen {
+        justify-content: center;
+        padding: 0;
+        align-items: flex-start; /* Start from top for better visibility */
+        padding-top: 5vh;
+    }
+    .login-box {
+        width: 90%;
+        padding: 30px 20px;
+    }
+}
+
+/* ==================================================== */
+/* --- DASHBOARD LAYOUT & NAVIGATION --- */
+/* ==================================================== */
+
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #ffffff;
+}
+
+/* Header */
+header {
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    padding: 15px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+/* Sidebar Navigation - FIX APPLIED HERE */
+.sidebar-menu {
+    width: 250px;
+    background-color: #eeeeee;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+    
+    /* Set Fixed to full viewport height */
+    position: fixed;
+    left: 0;
+    z-index: 50; 
+    top: 0; 
+    height: 100vh; 
+    
+    /* Padding to account for the fixed header */
+    padding-top: 80px; 
+    padding-left: 10px;
+    padding-right: 10px;
+    
+    /* Remove padding-bottom, sticky button handles spacing */
+    /* padding-bottom: 70px; */ 
+    
+    overflow-y: auto; /* Allows scrolling if menu items are long */
+}
+
+.sidebar-menu button {
+    display: block;
+    width: 100%;
+    padding: 12px 10px;
+    margin: 8px 0;
+    background: transparent;
+    color: var(--text-dark);
+    border: none;
+    text-align: left;
+    font-weight: 500;
+    transition: all 0.3s;
+    border-radius: 4px;
+}
+
+.sidebar-menu button:hover {
+    background: #dddddd;
+    color: var(--primary-color);
+    transform: none;
+}
+
+/* 2. Style the Logout Button - FIX APPLIED HERE */
+.sidebar-logout-btn {
+    /* CRITICAL FIX: Use sticky positioning to anchor the button to the bottom 
+       of the scrollable sidebar container. */
+    position: sticky !important; 
+    
+    /* Anchor the button to the bottom of the container */
+    bottom: 0px; 
+    
+    z-index: 60; /* Ensure it overlays the scrolling menu items */
+    
+    left: 10px;
+    right: 10px;
+    width: auto !important; 
+    
+    /* Highlight the button */
+    background-color: #111111 !important; 
+    color: var(--text-light) !important;
+    font-weight: 600 !important;
+    padding: 14px !important;
+    margin-top: 20px !important; /* Add separation from the last menu link */
+    margin-bottom: 10px !important; /* Keep 10px from the bottom edge */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    transform: none !important;
+}
+
+.sidebar-logout-btn:hover {
+    background-color: #111111 !important; 
+    transform: translateY(-2px) !important;
+}
+
+
+/* Main Content Area */
+.content-area {
+    margin-left: 250px; /* Offset for sidebar */
+    padding: 80px 20px 20px 20px; /* Space for fixed header */
+    flex-grow: 1;
+    min-width: calc(100% - 250px);
+    box-sizing: border-box;
+}
+
+/* --- Content Sections --- */
+.content-area section {
+    background-color: #ffffff;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+/* --- Manage Users Sub-Navigation --- */
+.sub-nav-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 5px;
+}
+
+.sub-nav-tabs button {
+    background: #f1f1f1;
+    color: var(--text-dark);
+    border: 1px solid #ccc;
+    padding: 8px 15px;
+}
+
+.sub-nav-tabs button:hover {
+    background: #e1e1e1;
+}
+
+
+/* ==================================================== */
+/* --- FORMS & INPUTS --- */
+/* ==================================================== */
+
+.form-group {
+    margin-bottom: 18px;
+    max-width: 400px; 
+}
+
+.form-card {
+    background-color: var(--bg-light);
+    border: 1px solid #ddd;
+    padding: 25px;
+    border-radius: 8px;
+    max-width: 450px;
+    margin-top: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--text-dark);
+    font-size: 14px;
+}
+
+input[type="text"], 
+input[type="password"], 
+input[type="email"], 
+select, 
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background-color: #fff;
+    color: var(--text-dark);
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+
+/* ==================================================== */
+/* --- BUTTONS & ACTIONS --- */
+/* ==================================================== */
+
+button {
+    padding: 12px 20px;
+    background: var(--primary-color);
+    color: var(--text-light);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+button:hover {
+    background: #333333;
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+}
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+/* Approval/Moderation Buttons */
+.btn-approve {
+    background-color: var(--success-color);
+}
+.btn-approve:hover {
+    background-color: #1e7e34;
+}
+
+.btn-reject, .btn-delete {
+    background-color: var(--danger-color);
+}
+.btn-reject:hover, .btn-delete:hover {
+    background-color: #bd2130;
+}
+
+.btn-disable {
+    background-color: var(--danger-color); /* Red for disabling */
+}
+.btn-enable {
+    background-color: var(--success-color); /* Green for enabling */
+}
+
+/* Large button for review page */
+.btn-lg {
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+
+/* ==================================================== */
+/* --- TABLES & DATA DISPLAY --- */
+/* ==================================================== */
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 15px;
+}
+
+table {
+    width: 100%;
+    min-width: 1200px; /* Ensure wide tables don't collapse */
+    border-collapse: collapse;
+    margin-bottom: 25px;
+    font-size: 14px;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 12px 8px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+th {
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.selected-row {
+    background-color: #d4edda !important; /* Success green highlight */
+}
+
+/* Search/Filter */
+.search-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.search-box {
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+/* Sorting Actions */
+.sorting-actions {
+    display: flex; 
+    gap: 10px;
+}
+.sorting-actions button {
+    background: #6c757d;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+.sorting-actions button.active-sort {
+    background-color: var(--secondary-color);
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+
+/* --- User Management Table Specifics --- */
+.users-table th, .users-table td {
+    white-space: nowrap; 
+}
+.users-table th:nth-child(3), .users-table td:nth-child(3) {
+    min-width: 100px; 
+}
+.users-table select {
+    min-width: 70px;
+    width: 100%;
+}
+.users-table th:last-child, .users-table td:last-child {
+    min-width: 200px; 
+}
+
+/* --- Moderation/Request Tables --- */
+.moderation-table {
+    min-width: 900px;
+}
+
+.type-add, .status-pending {
+    font-weight: bold;
+    color: var(--secondary-color);
+}
+.type-update {
+    color: orange;
+    font-weight: bold;
+}
+.type-delete {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+.status-approved {
+    color: var(--success-color);
+    font-weight: bold;
+}
+.status-rejected {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+
+
+/* ==================================================== */
+/* --- MISC UTILITIES --- */
+/* ==================================================== */
+
+.batch-actions {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.form-card h3 {
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--secondary-color);
+}
+
+/* Scroll-to-top button */
+.scroll-to-top {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 22px;
+    cursor: pointer;
+    display: none; /* Controlled by JavaScript */
+    z-index: 99;
+}
+
+
+/* ---------- Print Styles ---------- */
+@media print {
+    /* Hide non-essential UI elements */
+    header, .sidebar-menu, .scroll-to-top, .no-print, .action-buttons-final, 
+    .search-container, .batch-actions, .log-filters { 
+        display: none !important; 
+    }
+    
+    /* Ensure main content is visible and fills the page */
+    body {
+        background: none;
+        margin: 0;
+        padding: 0;
+    }
+    .dashboard-container, .content-area {
+        display: block;
+        margin-left: 0;
+        padding: 0;
+    }
+    .content-area section {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+    }
+    
+    /* Ensure tables and details are visible */
+    table {
+        min-width: 100%;
+        width: 100%;
+    }
+    th {
+        background-color: #333 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* style.css (Add new styles for pending status) */
+
+/* Highlight rows with pending moderation requests */
+.pending-status-row {
+    background-color: #fff3cd !important; /* Light yellow background */
+    border-left: 5px solid orange;
+    transition: background-color 0.3s;
+}
+
+.pending-status-row:hover {
+    background-color: #ffeeba !important;
+}
+
+/* ---------- Reset Password Page ---------- */
+
+.reset-wrapper {
+    position: fixed;
+    inset: 0;
+    background: url('login-bg.jpg') no-repeat center center;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.reset-wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.reset-box {
+    width: 360px;
+    max-width: 90%;
+    z-index: 2;
+}
+
+.reset-box h2 {
+    color: #fff;
+    margin-bottom: 15px;
+}
+
+#reset-page-message {
+    color: #ffd966;
+    font-size: 14px;
+}
+
+.reset-box a {
+    color: #ddd;
+    font-size: 14px;
+}
+
+.reset-box a:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+#submit-new-password-btn {
+    background: #000;
+    font-weight: bold;
+}
+
+#submit-new-password-btn:hover {
+    background: #222;
+}

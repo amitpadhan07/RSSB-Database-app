@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSSB RUDRAPUR DATABASE SYSTEM</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="logo.png">
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <img src="logo.png" alt="Logo" class="logo">
+
+            <h2>WELCOME TO RSSB RUDRAPUR DATABASE SYSTEM</h2>
+            <h2>LOGIN</h2>
+
+            <input id="username" placeholder="Username">
+            <input id="password" type="password" placeholder="Password">
+            <button onclick="login()">Login</button>
+
+            <a href="#" onclick="showForgotPasswordScreen()">Forgot Password?</a>
+
+        </div>
+    </div>
+
+    <div id="forgot-password-screen" style="display:none;">
+        <div class="login-box">
+            <img src="logo.png" alt="Logo" class="logo">
+            <h2>RESET PASSWORD</h2>
+
+            <input id="reset-identifier" placeholder="Enter Username or Badge No.">
+
+            <button id="submit-reset-btn" onclick="submitPasswordResetRequest()">Request Password Reset</button>
+            <button onclick="showLoginScreen()">Back to Login</button>
+
+            <p id="reset-message" style="margin-top: 15px;"></p>
+        </div>
+    </div>
+
+    <div id="admin-dashboard" class="dashboard-container" style="display:none;">
+        <header>
+            <h1>Admin Dashboard</h1>
+            <div style="font-size: 14px; margin-left: auto;">
+            </div>
+        </header>
+
+        <nav class="sidebar-menu">
+            <button onclick="showAdminSection('add-section')">Add Member</button>
+            <button onclick="showAdminSection('view-section')">View All Members</button>
+            <button onclick="showAdminSection('print-list-section')">Print List</button>
+            <button onclick="showAdminSection('manage-requests-section')">Manage Action Requests</button>
+            <button onclick="showAdminSection('manage-users-section')">Manage Users</button>
+            <button onclick="showAdminSection('admin-profile-section'); viewMyProfile();">👤 My Profile</button>
+            <button onclick="showAdminSection('admin-settings-section')">⚙️ Settings</button>
+            <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
+        </nav>
+
+        <main class="content-area">
+            <section id="member-detail-section" style="display:none;"></section>
+
+            <section id="add-section" style="display:none;">
+                <h2>Add New Member (Admin Direct)</h2>
+                <form id="add-record-form" onsubmit="return false;">
+                    <div class="form-group">
+                        <label>Badge Type</label>
+                        <select id="add-badge-type">
+                            <option value="">Select Badge Type</option>
+                            <option value="OPENSLIP">OPENSLIP</option>
+                            <option value="ZONE">ZONE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-badge">Badge No. (Format: AM-123456)</label>
+                        <input type="text" id="add-badge" placeholder="AM-123456"
+                            oninput="formatBadgeNumber('add-badge')">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-pic">Profile Picture</label>
+                        <input type="file" id="add-pic" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-name">Name</label>
+                        <input type="text" id="add-name" placeholder="Full Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-parent">Parent Name</label>
+                        <input type="text" id="add-parent" placeholder="Parent's Full Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-gender">Gender</label>
+                        <select id="add-gender">
+                            <option value="MALE">Male</option>
+                            <option value="FEMALE">Female</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-phone">Phone</label>
+                        <input type="text" id="add-phone" placeholder="10 digits" maxlength="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-birth">Birth Date (dd-mm-yyyy)</label>
+                        <input type="text" id="add-birth" placeholder="dd-mm-yyyy">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-address">Address</label>
+                        <input type="text" id="add-address" placeholder="Full Address">
+                    </div>
+
+                    <button type="submit" onclick="adminAddRecord()">Save Record Directly</button>
+                    <button type="button" onclick="showAdminSection('view-section')">Cancel</button>
+                </form>
+            </section>
+
+            <section id="update-section" style="display:none;">
+                <h2>Update Member Record (Admin Direct)</h2>
+                <form id="admin-update-record-form" onsubmit="return false;">
+                    <input type="hidden" id="admin-update-original-badge-no">
+
+                    <div id="admin-update-form-fields">
+                    </div>
+
+                    <button type="submit" onclick="adminSubmitUpdate()">Save Changes Directly</button>
+                    <button type="button" onclick="showAdminSection('view-section')">Cancel</button>
+                </form>
+            </section>
+
+            <section id="view-section" style="display:none;">
+                <h2>All Members</h2>
+                <div class="search-container">
+                    <input type="text" id="global-search" class="search-box" placeholder="Search all records..."
+                        onkeyup="filterAndSearchRecords()">
+
+                    <div class="sorting-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                        <span style="font-weight: 600; align-self: center;">Sort By:</span>
+                        <button onclick="sortRecords('age', this)" data-sort-key="age" data-direction="ASC"
+                            class="btn-secondary">Age ↑</button>
+                        <button onclick="sortRecords('name', this)" data-sort-key="name" data-direction="ASC"
+                            class="btn-secondary">Name ↑</button>
+                        <button onclick="sortRecords('address', this)" data-sort-key="address" data-direction="ASC"
+                            class="btn-secondary">Address ↑</button>
+                        <button onclick="sortRecords('gender', this)" data-sort-key="gender" data-direction="ASC"
+                            class="btn-secondary">Gender ↑</button>
+                    </div>
+
+                    <select id="badge-type-filter" onchange="filterAndSearchRecords()">
+                        <option value="">All Badge Types</option>
+                        <option value="OPENSLIP">Open Slip</option>
+                        <option value="ZONE">Zone</option>
+                    </select>
+                </div>
+
+                <div class="batch-actions">
+                    <button onclick="selectAllByName()">Select by Name</button>
+                    <button onclick="clearAllSelections()">Clear Selections</button>
+                </div>
+                <div id="records-table-container">
+                    <table id="records-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                                <th>SR NO.</th>
+                                <th>BADGE TYPE</th>
+                                <th>BADGE NO.</th>
+                                <th>PIC</th>
+                                <th>NAME</th>
+                                <th>PARENT NAME</th>
+                                <th>GENDER</th>
+                                <th>PHONE</th>
+                                <th>BIRTH DATE</th>
+                                <th>AGE</th>
+                                <th>ADDRESS</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-records-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="print-list-section" style="display:none;">
+                <h2>Printable List</h2>
+                <div id="printable-list-content">
+                </div>
+            </section>
+
+            <section id="manage-requests-section" style="display:none;">
+                <h2>Manage Action Requests (Moderation Queue)</h2>
+
+                <button onclick="loadPendingRequests()" class="btn-secondary" style="margin-bottom: 15px;">
+                    <i class="fa fa-refresh"></i> Refresh Pending Requests
+                </button>
+
+                <div id="requests-list-container">
+                </div>
+                <div id="request-details-view" style="display:none;">
+                </div>
+            </section>
+
+            <section id="manage-users-section" style="display: none;">
+                <h2>Admin Control: User & System Management ⚙️</h2>
+
+                <div class="sub-nav-tabs">
+                    <button class="tab-button"
+                        onclick="showUserSubSection('view-users-list-section'); viewAllUsers();">View All Users</button>
+                    <button class="tab-button" onclick="showUserSubSection('add-user-section');">Add New User</button>
+                    <button class="tab-button" onclick="showUserSubSection('manage-password-section');">Reset User
+                        Password</button>
+                    <button class="tab-button" onclick="showUserSubSection('view-logs-section'); viewLogs();">View Audit
+                        Logs</button>
+                </div>
+
+                <div id="manage-users-content" style="padding-top: 20px;">
+
+                    <section id="view-users-list-section" style="display: block;">
+                        <h3>System User List (Update Role / Status)</h3>
+                        <div id="users-list-container" class="table-container">
+                            <p>Loading user list...</p>
+                        </div>
+                    </section>
+
+                    <section id="add-user-section" style="display: none;">
+                        <h3>Add New System User</h3>
+                        <form id="add-user-form" onsubmit="event.preventDefault(); adminAddUser();">
+                            <div class="form-group">
+                                <label for="add-user-badge">Link Member Badge No:</label>
+                                <input type="text" id="add-user-badge" placeholder="AM-123456"
+                                    onblur="formatBadgeNumber('add-user-badge')" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="add-user-email">Email:</label>
+                                <input type="email" id="add-user-email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="add-user-username">Username (e.g., U007):</label>
+                                <input type="text" id="add-user-username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="add-user-role">User Role:</label>
+                                <select id="add-user-role" required>
+                                    <option value="user">User</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn-primary">Add User</button>
+                        </form>
+                    </section>
+
+                    <section id="user-account-detail-section" style="display: none; padding: 20px;"></section>
+
+                    <section id="manage-password-section" style="display: none;">
+                        <h3>Reset Any User's Password (Temporary password will be emailed)</h3>
+                        <form id="reset-password-form" onsubmit="event.preventDefault(); adminResetPassword();">
+                            <div class="form-group">
+                                <label for="reset-username">Target Username:</label>
+                                <input type="text" id="reset-username" required>
+                            </div>
+                            
+                            <button type="submit" class="btn-primary btn-warning">Force Reset Password</button>
+                        </form>
+                    </section>
+
+                    <section id="view-logs-section" style="display: none;">
+                        <h3>System Audit Logs</h3>
+                        <div class="log-filters" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                            <input type="text" id="log-filter-user" placeholder="Filter by Username"
+                                onkeyup="viewLogs()">
+                            <select id="log-filter-action" onchange="viewLogs()">
+                                <option value="">All Actions</option>
+                                <option value="LOGIN">Login</option>
+                                <option value="ADMIN_ADD">Admin Add</option>
+                                <option value="ADMIN_UPDATE">Admin Update</option>
+                                <option value="ADMIN_DELETE">Admin Delete</option>
+                                <option value="USER_ADD_APPROVED">Add Approved</option>
+                                <option value="USER_UPDATE_APPROVED">Update Approved</option>
+                                <option value="USER_DELETE_APPROVED">Delete Approved</option>
+                                <option value="USER_CREATED">User Created</option>
+                                <option value="PASSWORD_RESET_ADMIN">Password Reset (Admin)</option>
+                                <option value="USER_DISABLED">User Disabled</option>
+                                <option value="USER_ENABLED">User Enabled</option>
+                                <option value="ROLE_UPDATED">Role Updated</option>
+                                <option value="PASSWORD_RESET_USER">Password Reset (User)</option>
+                                <option value="PASSWORD_CHANGED_USER">Password Changed (User)</option>
+                                <option value="USER_DELETED">User Deleted</option>
+                            </select>
+                            <button onclick="refreshLogs()" class="btn-secondary">Refresh Logs</button>
+                        </div>
+                        <div id="logs-list-container" class="table-container">
+                            <p>Logs will load here.</p>
+                        </div>
+                    </section>
+
+                </div>
+            </section>
+            <section id="manage-users-section" style="display: none;">
+                </section>
+            
+            <section id="admin-profile-section" style="display:none;">
+                <h2>My Admin Profile</h2>
+                <div id="admin-profile-details">
+                    </div>
+            </section> <section id="admin-settings-section" style="display:none;">
+                </section>
+
+            <section id="admin-settings-section" style="display:none;">
+                <h2>My Account Settings</h2>
+
+                <div id="admin-change-password-section" class="form-card">
+                    <h3>Change My Password</h3>
+                    <form id="admin-change-password-form" onsubmit="event.preventDefault(); userChangePassword();">
+                        <div class="form-group">
+                            <label for="user-old-password">Current Password:</label>
+                            <input type="password" id="user-old-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-new-password">New Password:</label>
+                            <input type="password" id="user-new-password" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="user-confirm-password">Confirm New Password:</label>
+                            <input type="password" id="user-confirm-password" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn-primary">Update Password</button>
+                    </form>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="user-dashboard" class="dashboard-container" style="display:none;">
+        <header>
+            <h1>User Dashboard</h1>
+        </header>
+
+        <nav class="sidebar-menu">
+            <button onclick="showUserSection('user-add-section')">Add New Record</button>
+            <button onclick="showUserSection('user-view-section')">View All Records</button>
+            <button onclick="showUserSection('user-print-list-section')">Print List</button>
+            <button onclick="showUserSection('user-requests-section')">View My Requests</button>
+            <button onclick="showUserSection('user-profile-section'); viewMyProfile();">👤 My Profile</button>
+            <button onclick="showUserSection('user-settings-section')">⚙️ Settings</button>
+            <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
+        </nav>
+
+        <main class="content-area">
+            <section id="user-member-detail-section" style="display:none;"></section>
+            <section id="user-add-section" style="display:none;">
+                <h2>Submit New Record Request for Approval</h2>
+                <form id="user-add-record-form" onsubmit="return false;">
+                    <div class="form-group">
+                        <label>Badge Type</label>
+                        <select id="user-add-badge-type">
+                            <option value="">Select Badge Type</option>
+                            <option value="OPENSLIP">OPENSLIP</option>
+                            <option value="ZONE">ZONE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-badge">Badge No. (Format: AM-123456)</label>
+                        <input type="text" id="user-add-badge" placeholder="AM-123456"
+                            oninput="formatBadgeNumber('user-add-badge')">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-pic">Profile Picture</label>
+                        <input type="file" id="user-add-pic" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-name">Name</label>
+                        <input type="text" id="user-add-name" placeholder="Full Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-parent">Parent Name</label>
+                        <input type="text" id="user-add-parent" placeholder="Parent's Full Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-gender">Gender</label>
+                        <select id="user-add-gender">
+                            <option value="MALE">Male</option>
+                            <option value="FEMALE">Female</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-phone">Phone</label>
+                        <input type="text" id="user-add-phone" placeholder="10 digits" maxlength="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-birth">Birth Date (dd-mm-yyyy)</label>
+                        <input type="text" id="user-add-birth" placeholder="dd-mm-yyyy">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-address">Address</label>
+                        <input type="text" id="user-add-address" placeholder="Full Address">
+                    </div>
+                    <div class="form-group">
+                        <label for="user-add-reason">Reason for Submission</label>
+                        <textarea id="user-add-reason"
+                            placeholder="Please provide the reason for adding this record (e.g., New Member Registration)."
+                            required></textarea>
+                    </div>
+
+                    <button type="submit" onclick="submitRecordRequest()">Submit for Approval</button>
+                    <button type="button" onclick="showUserSection('user-view-section')">Cancel</button>
+                </form>
+            </section>
+
+            <section id="user-update-section" style="display:none;">
+                <h2>Submit Record Update Request for Approval</h2>
+                <form id="user-update-record-form" onsubmit="return false;">
+                    <input type="hidden" id="user-update-original-badge-no">
+
+                    <div id="user-update-form-fields">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="user-update-reason">Reason for Update Request</label>
+                        <textarea id="user-update-reason" placeholder="Please explain the reason for the changes..."
+                            required></textarea>
+                    </div>
+
+                    <button type="submit" onclick="userSubmitUpdateRequest()">Submit Request for Approval</button>
+                    <button type="button" onclick="showUserSection('user-view-section')">Cancel</button>
+                </form>
+            </section>
+
+            <section id="user-view-section" style="display:none;">
+                <h2>All Members</h2>
+                <div class="search-container">
+                    <input type="text" id="user-global-search" class="search-box" placeholder="Search all records..."
+                        onkeyup="filterAndSearchRecords()">
+
+                    <div class="sorting-actions" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                        <span style="font-weight: 600; align-self: center;">Sort By:</span>
+                        <button onclick="sortRecords('age', this)" data-sort-key="age" data-direction="ASC"
+                            class="btn-secondary">Age ↑</button>
+                        <button onclick="sortRecords('name', this)" data-sort-key="name" data-direction="ASC"
+                            class="btn-secondary">Name ↑</button>
+                        <button onclick="sortRecords('address', this)" data-sort-key="address" data-direction="ASC"
+                            class="btn-secondary">Address ↑</button>
+                        <button onclick="sortRecords('gender', this)" data-sort-key="gender" data-direction="ASC"
+                            class="btn-secondary">Gender ↑</button>
+                    </div>
+
+                    <select id="user-badge-type-filter" onchange="filterAndSearchRecords()">
+                        <option value="">All Badge Types</option>
+                        <option value="OPENSLIP">Open Slip</option>
+                        <option value="ZONE">Zone</option>
+                    </select>
+                </div>
+
+                <div class="batch-actions">
+                    <button onclick="selectAllByName()">Select by Name</button>
+                    <button onclick="clearAllSelections()">Clear Selections</button>
+                </div>
+                <div id="records-table-container">
+                    <table id="records-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                                <th>SR NO.</th>
+                                <th>BADGE TYPE</th>
+                                <th>BADGE NO.</th>
+                                <th>PIC</th>
+                                <th>NAME</th>
+                                <th>PARENT NAME</th>
+                                <th>GENDER</th>
+                                <th>PHONE</th>
+                                <th>BIRTH DATE</th>
+                                <th>AGE</th>
+                                <th>ADDRESS</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="user-records-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="user-print-list-section" style="display:none;">
+                <h2>Printable List</h2>
+                <div id="user-printable-list-content">
+                </div>
+            </section>
+
+            <section id="user-requests-section" style="display:none;">
+                <h2>My Submitted Requests (Status)</h2>
+
+                <button onclick="fetchAndRenderUserRequests()" class="btn-secondary" style="margin-bottom: 15px;">
+                    <i class="fa fa-refresh"></i> Refresh My Requests
+                </button>
+
+                <div id="my-requests-list-container">
+                </div>
+            </section>
+
+            <section id="user-profile-section" style="display:none;">
+                <h2>My Profile</h2>
+                <div id="user-profile-details">
+                    </div>
+            </section>
+
+            <section id="user-settings-section" style="display:none;">
+                <h2>My Account Settings</h2>
+
+                <div id="user-change-password-section" class="form-card">
+                    <h3>Change My Password</h3>
+                    <form id="user-change-password-form" onsubmit="event.preventDefault(); userChangePassword();">
+                        <div class="form-group">
+                            <label for="user-old-password">Current Password:</label>
+                            <input type="password" id="user-old-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-new-password">New Password:</label>
+                            <input type="password" id="user-new-password" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="user-confirm-password">Confirm New Password:</label>
+                            <input type="password" id="user-confirm-password" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn-primary">Update Password</button>
+                    </form>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <button class="scroll-to-top" onclick="window.scrollTo(0, 0)">↑</button>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
