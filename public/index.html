@@ -8,6 +8,7 @@
 
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -25,7 +26,11 @@
             <h2>LOGIN</h2>
 
             <input id="username" placeholder="Username">
-            <input id="password" type="password" placeholder="Password">
+            <div class="password-wrapper">
+    <input id="password" type="password" placeholder="Password">
+    <i class="fa-solid fa-eye toggle-password"
+   onclick="togglePasswordById('password', this)"></i>
+</div>
             <button onclick="login()">Login</button>
 
             <a href="#" onclick="showForgotPasswordScreen()">Forgot Password?</a>
@@ -58,6 +63,9 @@
             <button onclick="showAdminSection('add-section')">Add Member</button>
             <button onclick="showAdminSection('view-section')">View All Members</button>
             <button onclick="showAdminSection('print-list-section')">Print List</button>
+            <button onclick="showAdminSection('admin-dashboard-section'); loadAnalytics();">
+        📊 Dashboard Analytics
+    </button>
             <button onclick="showAdminSection('manage-requests-section')">Manage Action Requests</button>
             <button onclick="showAdminSection('manage-users-section')">Manage Users</button>
             <button onclick="showAdminSection('admin-profile-section'); viewMyProfile();">👤 My Profile</button>
@@ -193,18 +201,21 @@
                 <div id="printable-list-content">
                 </div>
             </section>
-
-            <section id="manage-requests-section" style="display:none;">
+             <section id="manage-requests-section" style="display:none;">
                 <h2>Manage Action Requests (Moderation Queue)</h2>
 
-                <button onclick="loadPendingRequests()" class="btn-secondary" style="margin-bottom: 15px;">
-                    <i class="fa fa-refresh"></i> Refresh Pending Requests
-                </button>
+<div class="request-action-bar">
+    <button onclick="loadPendingRequests()" class="btn-secondary">
+        Refresh Pending Requests
+    </button>
 
-                <div id="requests-list-container">
-                </div>
-                <div id="request-details-view" style="display:none;">
-                </div>
+    <button onclick="bulkApproveRequests()" class="btn-approve">
+        ✅ Accept Selected Requests
+    </button>
+</div>
+
+<div id="requests-list-container"></div>
+<div id="request-details-view" style="display:none;"></div>
             </section>
 
             <section id="manage-users-section" style="display: none;">
@@ -303,38 +314,89 @@
 
                 </div>
             </section>
-            <section id="manage-users-section" style="display: none;">
-                </section>
             
             <section id="admin-profile-section" style="display:none;">
-                <h2>My Admin Profile</h2>
-                <div id="admin-profile-details">
-                    </div>
-            </section> <section id="admin-settings-section" style="display:none;">
-                </section>
+    <h2>My Admin Profile</h2>
+    <div id="admin-profile-details"></div>
+</section>
 
             <section id="admin-settings-section" style="display:none;">
-                <h2>My Account Settings</h2>
+    <h2>My Account Settings</h2>
 
-                <div id="admin-change-password-section" class="form-card">
-                    <h3>Change My Password</h3>
-                    <form id="admin-change-password-form" onsubmit="event.preventDefault(); userChangePassword();">
-                        <div class="form-group">
-                            <label for="user-old-password">Current Password:</label>
-                            <input type="password" id="user-old-password" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="user-new-password">New Password:</label>
-                            <input type="password" id="user-new-password" required minlength="6">
-                        </div>
-                        <div class="form-group">
-                            <label for="user-confirm-password">Confirm New Password:</label>
-                            <input type="password" id="user-confirm-password" required minlength="6">
-                        </div>
-                        <button type="submit" class="btn-primary">Update Password</button>
-                    </form>
-                </div>
-            </section>
+    <div id="admin-change-password-section" class="form-card">
+        <h3>Change My Password</h3>
+
+        <form id="admin-change-password-form"
+              onsubmit="event.preventDefault(); userChangePassword();">
+
+            <div class="form-group">
+                <label for="admin-old-password">Current Password:</label>
+                <input type="password" id="admin-old-password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="admin-new-password">New Password:</label>
+                <input type="password" id="admin-new-password" required minlength="6">
+            </div>
+
+            <div class="form-group">
+                <label for="admin-confirm-password">Confirm New Password:</label>
+                <input type="password" id="admin-confirm-password" required minlength="6">
+            </div>
+
+            <button type="submit" class="btn-primary">Update Password</button>
+        </form>
+    </div>
+</section>
+
+<section id="admin-dashboard-section" style="display:none;">
+    <h2>📊 System Analytics</h2>
+
+    <!-- STATS CARDS -->
+    <div class="stats-cards">
+        <div class="card">
+            Total Members
+            <h3 id="totalMembers">0</h3>
+        </div>
+        <div class="card">
+            Active Users
+            <h3 id="activeUsers">0</h3>
+        </div>
+        <div class="card">
+            Pending Requests
+            <h3 id="pendingRequests">0</h3>
+        </div>
+    </div>
+
+    <!-- CHARTS GRID -->
+    <div class="analytics-grid">
+
+        <div>
+            <h3 class="chart-title">Badge Type Distribution</h3>
+            <div class="chart-container">
+                <canvas id="badgeTypeChart"></canvas>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="chart-title">Gender Distribution</h3>
+            <div class="chart-container">
+                <canvas id="genderChart"></canvas>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="chart-title">Age Group Distribution</h3>
+            <div class="chart-container">
+                <canvas id="ageChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+
+
 
         </main>
     </div>
@@ -540,6 +602,8 @@
     <button class="scroll-to-top" onclick="window.scrollTo(0, 0)">↑</button>
 
     <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </body>
 
 </html>

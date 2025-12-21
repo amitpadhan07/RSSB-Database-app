@@ -1504,6 +1504,63 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
+// ==================CHART APIS====================
+
+app.get('/api/admin/analytics', async (req, res) => {
+    try {
+        const totalMembers = await pool.query(
+            'SELECT COUNT(*) FROM persons'
+        );
+
+        const activeUsers = await pool.query(
+            'SELECT COUNT(*) FROM users WHERE is_active = true'
+        );
+
+        const pendingRequests = await pool.query(
+            "SELECT COUNT(*) FROM moderation_requests WHERE request_status = 'Pending'"
+        );
+
+        const genderStats = await pool.query(`
+            SELECT gender, COUNT(*) 
+            FROM persons 
+            GROUP BY gender
+        `);
+
+        const badgeTypeStats = await pool.query(`
+    SELECT badge_type, COUNT(*) 
+    FROM persons 
+    GROUP BY badge_type
+`);
+
+        const ageGroups = await pool.query(`
+            SELECT
+              CASE
+                WHEN EXTRACT(YEAR FROM AGE(birth_date)) < 18 THEN 'Below 18'
+                WHEN EXTRACT(YEAR FROM AGE(birth_date)) BETWEEN 18 AND 30 THEN '18-30'
+                WHEN EXTRACT(YEAR FROM AGE(birth_date)) BETWEEN 31 AND 50 THEN '31-50'
+                ELSE '50+'
+              END AS age_group,
+              COUNT(*)
+            FROM persons
+            GROUP BY age_group
+        `);
+
+        res.json({
+    totalMembers: totalMembers.rows[0].count,
+    activeUsers: activeUsers.rows[0].count,
+    pendingRequests: pendingRequests.rows[0].count,
+    genderStats: genderStats.rows,
+    ageGroups: ageGroups.rows,
+    badgeTypeStats: badgeTypeStats.rows   // ✅ NEW
+});
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Analytics fetch failed' });
+    }
+});
+
+
 
 // --- START THE SERVER ---
 app.listen(port, () => {

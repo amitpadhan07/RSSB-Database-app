@@ -127,6 +127,30 @@ a {
     font-size: 14px;
 }
 
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    width: 100%;
+    padding-right: 42px; /* icon space */
+}
+
+.toggle-password {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #555;
+    font-size: 16px;
+}
+
+.toggle-password:hover {
+    color: #000;
+}
+
+
 /* ---------- Responsive Design for Login ---------- */
 @media (max-width: 768px) {
     #login-screen, #forgot-password-screen {
@@ -662,3 +686,41 @@ tr:nth-child(odd) {
 #submit-new-password-btn:hover {
     background: #222;
 }
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+}
+
+.chart-title {
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.chart-container {
+    width: 100%;
+    max-width: 420px;
+    height: 280px;
+    margin: 0 auto;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.request-action-bar {
+    display: flex;
+    gap: 12px;              /* buttons ke beech space */
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;        /* mobile pe neeche aa sakta hai */
+}
+
+.request-action-bar button {
+    width: auto !important; /* full width hone se roke */
+}
+

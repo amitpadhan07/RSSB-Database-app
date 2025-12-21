@@ -4,6 +4,10 @@ const BASE_URL = 'https://rssb-rudrapur-database-api.onrender.com';
 // Global user object to store logged-in state (role and username)
 var CURRENT_USER = {}; 
 
+let genderChartInstance = null;
+let ageChartInstance = null;
+let badgeTypeChartInstance = null;
+
 // INITIAL DATABASE (In-memory data structure for UI rendering)
 const database = {
     records: [],
@@ -1863,6 +1867,7 @@ async function loadPendingRequests() {
             <table class="moderation-table">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" onclick="toggleSelectAllRequests(this)"></th>
                         <th>Req ID</th>
                         <th>Tracking ID</th>
                         <th>Type</th>
@@ -1884,6 +1889,9 @@ async function loadPendingRequests() {
             
             tableHTML += `
                 <tr>
+                    <td><input type="checkbox"
+                    class="request-checkbox"
+                    data-request-id="${req.request_id}"></td>
                     <td>${req.request_id}</td>
                     <td>${req.tracking_id || 'N/A'}</td>
                     <td class="type-${typeClass}">${req.request_type}</td>
@@ -1906,6 +1914,60 @@ async function loadPendingRequests() {
         listContainer.innerHTML = '<h2>Error loading requests. Check console.</h2>';
     }
 }
+
+function toggleSelectAllRequests(master) {
+    document.querySelectorAll('.request-checkbox')
+        .forEach(cb => cb.checked = master.checked);
+}
+
+async function bulkApproveRequests() {
+    // 🔐 Admin only
+    if (CURRENT_USER.role !== 'admin') {
+        return alert('Unauthorized');
+    }
+
+    // 📦 Selected request IDs
+    const selectedRequests = Array.from(
+        document.querySelectorAll('.request-checkbox:checked')
+    ).map(cb => cb.dataset.requestId);
+
+    if (selectedRequests.length === 0) {
+        return alert('No requests selected');
+    }
+
+    if (!confirm(`Accept ${selectedRequests.length} selected requests?`)) return;
+
+    // 🔁 Approve one by one
+    for (let requestId of selectedRequests) {
+        await fetch(`${BASE_URL}/api/requests/approve/${requestId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                approvedBy: getLoggedInUsername()
+            })
+        });
+    }
+
+    alert('Selected requests accepted successfully');
+    loadPendingRequests(); // refresh queue
+}
+
+function togglePasswordById(inputId, icon) {
+    const input = document.getElementById(inputId);
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+
+
 
 /**
  * Opens the detailed view for a moderation request, fetching both requested and original data.
@@ -2489,8 +2551,8 @@ async function viewMyProfile() {
         const finalPicSrc = user.pic ? userPicUrl : 'demo.png'; 
         
         // Determine the ID for the Change Password button link
-        const changePasswordSectionId = CURRENT_USER.role === 'admin' ? 'admin-settings-section' : 'user-change-password-section';
-        const sectionFunction = CURRENT_USER.role === 'admin' ? 'showAdminSection' : 'showUserSection';
+        const changePasswordSectionId = CURRENT_USER.role === 'admin' ? 'admin-settings-section' : 'user-settings-section';
+    const sectionFunction = CURRENT_USER.role === 'admin' ? 'showAdminSection' : 'showUserSection';
 
         // Render the user details dynamically
         detailContainer.innerHTML = `
@@ -2536,49 +2598,32 @@ async function viewMyProfile() {
  */
 async function userChangePassword() {
     const username = CURRENT_USER.username;
-    if (!username) return alert("Error: Please log in again to change your password.");
+    // Role ke hisaab se prefix set karein (admin ya user)
+    const prefix = CURRENT_USER.role === 'admin' ? 'admin' : 'user';
+    
+    const oldPassword = document.getElementById(`${prefix}-old-password`).value.trim();
+    const newPassword = document.getElementById(`${prefix}-new-password`).value.trim();
+    const confirmPassword = document.getElementById(`${prefix}-confirm-password`).value.trim();
 
-    const oldPasswordInput = document.getElementById('user-old-password');
-    const newPasswordInput = document.getElementById('user-new-password');
-    const confirmPasswordInput = document.getElementById('user-confirm-password');
-
-    const oldPassword = oldPasswordInput.value.trim();
-    const newPassword = newPasswordInput.value.trim();
-    const confirmPassword = confirmPasswordInput.value.trim();
-
-    // Frontend Validation
-    if (!oldPassword || !newPassword || !confirmPassword || newPassword.length < 6 || newPassword !== confirmPassword || oldPassword === newPassword) {
-        return alert('Validation failed: Check all fields, password length (min 6), match, and ensure new password is different from old.');
+    if (newPassword !== confirmPassword) {
+        return alert("New passwords do not match!");
     }
 
     try {
-        const response = await fetch(`${BASE_URL}/api/change-password`, { 
+        const response = await fetch(`${BASE_URL}/api/change-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                username: username, 
-                oldPassword: oldPassword, 
-                newPassword: newPassword 
-            }),
+            body: JSON.stringify({ username, oldPassword, newPassword }),
         });
-
-        const result = await response.json(); 
-
+        const result = await response.json();
         if (response.ok) {
-            alert(`Success! ${result.message || "Password successfully changed."} You will be logged out now.`);
-            
-            // Clear inputs and force logout
-            oldPasswordInput.value = '';
-            newPasswordInput.value = '';
-            confirmPasswordInput.value = '';
-            
-            logout(); 
+            alert("Password updated! Logging out...");
+            logout();
         } else {
-            alert(`Password Change Failed: ${result.message || "An unknown error occurred."}`);
+            alert(result.message);
         }
     } catch (error) {
-        console.error('Error changing password:', error);
-        alert('A network error occurred while attempting to change the password.');
+        alert("Error updating password.");
     }
 }
 
@@ -2798,6 +2843,141 @@ function selectAllByName() {
     updateTable();
     alert(`Selected ${database.selectedRecords.size} records.`);
 }
+
+
+// CHART ANALYTICS AND VISUALIZATIONS
+
+async function loadAnalytics() {
+    try {
+        // ✅ ADMIN SAFETY CHECK
+        if (CURRENT_USER.role !== 'admin') return;
+
+        const res = await fetch(`${BASE_URL}/api/admin/analytics`);
+        const data = await res.json();
+
+        // 🔢 Stats numbers
+        document.getElementById('totalMembers').innerText = data.totalMembers;
+        document.getElementById('activeUsers').innerText = data.activeUsers;
+        document.getElementById('pendingRequests').innerText = data.pendingRequests;
+
+        // 🧹 Destroy old charts
+        if (genderChartInstance) genderChartInstance.destroy();
+        if (ageChartInstance) ageChartInstance.destroy();
+        if (badgeTypeChartInstance) badgeTypeChartInstance.destroy();
+
+        // ===============================
+        // 🥧 GENDER PIE CHART (COUNT + %)
+        // ===============================
+        const genderCtx = document.getElementById('genderChart').getContext('2d');
+
+        genderChartInstance = new Chart(genderCtx, {
+    type: 'pie',
+    data: {
+        labels: data.genderStats.map(g => g.gender),
+        datasets: [{
+            data: data.genderStats.map(g => Number(g.count)), // 🔥 FIX
+            backgroundColor: ['#007bff', '#dc3545', '#28a745']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        const value = Number(context.raw);
+                        const total = context.dataset.data
+                            .map(Number)
+                            .reduce((a, b) => a + b, 0);
+
+                        const percent = ((value / total) * 100).toFixed(1);
+                        return `${context.label}: ${value} (${percent}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+        // ===============================
+        // 📊 AGE BAR CHART (COUNT + %)
+        // ===============================
+        const ageCtx = document.getElementById('ageChart').getContext('2d');
+
+        ageChartInstance = new Chart(ageCtx, {
+    type: 'bar',
+    data: {
+        labels: data.ageGroups.map(a => a.age_group),
+        datasets: [{
+            label: 'Members',
+            data: data.ageGroups.map(a => Number(a.count)), // 🔥 FIX
+            backgroundColor: '#6c757d'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        const value = Number(context.raw);
+                        const total = context.dataset.data
+                            .map(Number)
+                            .reduce((a, b) => a + b, 0);
+
+                        const percent = ((value / total) * 100).toFixed(1);
+                        return `${value} members (${percent}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+
+        // ===============================
+        // 🥧 BADGE TYPE PIE CHART (COUNT + %)
+        // ===============================
+        const badgeCtx = document.getElementById('badgeTypeChart').getContext('2d');
+
+       badgeTypeChartInstance = new Chart(badgeCtx, {
+    type: 'pie',
+    data: {
+        labels: data.badgeTypeStats.map(b => b.badge_type),
+        datasets: [{
+            data: data.badgeTypeStats.map(b => Number(b.count)), // 🔥 FIX
+            backgroundColor: ['#007bff', '#28a745']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        const value = Number(context.raw);
+                        const total = context.dataset.data
+                            .map(Number)
+                            .reduce((a, b) => a + b, 0);
+
+                        const percent = ((value / total) * 100).toFixed(1);
+                        return `${context.label}: ${value} (${percent}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+    } catch (err) {
+        console.error('Analytics load failed:', err);
+        alert('Failed to load analytics');
+    }
+}
+
 
 /**
  * Batch action to clear all current selections.

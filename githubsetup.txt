@@ -1,0 +1,17 @@
+#LINK GITHUB ACCOUNT 
+
+git config --global user.name "Your GitHub Username"
+git config --global user.email "your-email@example.com"
+
+#CREATE A NEW REPOSITORY
+
+#Initialize and Add Files to Your Local Folder
+
+git init => TO ADD A .git FILE IN THE FOLDER TO CHECK FOR CHANGES
+git add . =>The dot means add everything in this folder
+git commit -m =>"HERE WE CAN WRITE THE COMMIT MESSAGE"
+
+#Link Local Folder to GitHub & Push to GitHub
+
+git remote add origin https://github.com/yourusername/RSSB-Project.git => ADD THE REMOTE URL
+git push -u origin main/master => PUSH CODE IN GITHUB REPOSITORY
