@@ -724,3 +724,450 @@ tr:nth-child(odd) {
     width: auto !important; /* full width hone se roke */
 }
 
+/* ==================================================== */
+/* --- MOBILE OPTIMIZATION FIXES --- */
+/* ==================================================== */
+
+@media (max-width: 850px) {
+    /* 1. Sidebar ko Drawer (Menu) mein badle */
+    .dashboard-container {
+        flex-direction: column;
+    }
+
+    .sidebar-menu {
+        width: 100%;
+        height: auto;
+        position: relative;
+        padding-top: 70px;
+        padding-bottom: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        box-shadow: none;
+    }
+
+    .sidebar-menu button {
+        width: 45% !important; /* Do buttons ek line mein */
+        font-size: 13px;
+        padding: 10px 5px;
+        margin: 5px;
+        background: #ffffff;
+        border: 1px solid #ddd;
+        text-align: center;
+    }
+
+    .sidebar-logout-btn {
+        width: 95% !important;
+        position: relative !important;
+        margin-top: 10px !important;
+    }
+
+    /* 2. Content Area ki Margin khatam kare */
+    .content-area {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 20px 10px !important;
+    }
+
+    /* 3. Tables ko scrollable banaye */
+    .table-container, #records-table-container {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid #ddd;
+    }
+
+    table {
+        min-width: 800px !important; /* Mobile pe columns dabe nahi */
+    }
+
+    /* 4. Dashboard Stats Cards ko stack kare */
+    .stats-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .analytics-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* 5. Header adjustments */
+    header h1 {
+        font-size: 18px;
+    }
+}
+
+/* 6. Choti screens ke liye extra fixes */
+@media (max-width: 480px) {
+    .sidebar-menu button {
+        width: 95% !important; /* Ek line mein ek button */
+    }
+    
+    .login-box {
+        width: 95% !important;
+        padding: 20px 15px !important;
+    }
+}
+
+/* --- Menu Button Fix --- */
+.mobile-menu-btn {
+    display: none; /* Desktop par chupayein */
+    background: transparent;
+    border: none;
+    color: white; /* Icon ka color white karein */
+    font-size: 30px; /* Size bada karein */
+    cursor: pointer;
+    padding: 5px 15px; /* Thoda touch area badhayein */
+    margin-right: 10px; /* Right side se thoda gap dein */
+}
+
+@media (max-width: 850px) {
+    .mobile-menu-btn {
+        display: block; /* Mobile par dikhayein */
+    }
+    
+    header {
+        padding: 10px 20px; /* Mobile header padding adjust karein */
+    }
+}
+
+/* --- SEWADAR DASHBOARD STYLES --- */
+
+/* Hero Card for Attendance */
+.attendance-hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%);
+    border: 1px solid #ffe0b2;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.1);
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.punch-btn {
+    background: linear-gradient(to right, #ff9800, #f57c00);
+    color: white;
+    font-size: 18px;
+    padding: 15px 40px;
+    border-radius: 50px;
+    border: none;
+    box-shadow: 0 5px 15px rgba(245, 124, 0, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.punch-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(245, 124, 0, 0.5);
+    background: linear-gradient(to right, #f57c00, #ef6c00);
+}
+
+.punch-btn:active {
+    transform: translateY(1px);
+}
+
+/* Status Dot */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    padding: 5px 15px;
+    border-radius: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    margin-bottom: 15px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.dot-neutral { height: 10px; width: 10px; background-color: #ccc; border-radius: 50%; display: inline-block; }
+.dot-green { height: 10px; width: 10px; background-color: #28a745; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #28a745; }
+.dot-red { height: 10px; width: 10px; background-color: #dc3545; border-radius: 50%; display: inline-block; }
+
+/* Duty Cards Grid */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.duty-card {
+    background: white;
+    border-left: 5px solid #ff9800; /* Orange Accent */
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+}
+
+.duty-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.duty-date {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.duty-place {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin: 5px 0;
+}
+
+.duty-time {
+    background: #fff3e0;
+    color: #e65100;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+/* Styled Table for History */
+.styled-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.styled-table th {
+    background-color: #ff9800;
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.styled-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.styled-table tr:last-of-type td {
+    border-bottom: 2px solid #ff9800;
+}
+
+/* --- SEWADAR DASHBOARD STYLES --- */
+
+/* Hero Card for Attendance */
+.attendance-hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8e1 100%); /* Light Orange Tint */
+    border: 1px solid #ffe0b2;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.1);
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.punch-btn {
+    background: linear-gradient(to right, #ff9800, #f57c00);
+    color: white;
+    font-size: 18px;
+    padding: 15px 40px;
+    border-radius: 50px;
+    border: none;
+    box-shadow: 0 5px 15px rgba(245, 124, 0, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.punch-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(245, 124, 0, 0.5);
+    background: linear-gradient(to right, #f57c00, #ef6c00);
+}
+
+.punch-btn:active {
+    transform: translateY(1px);
+}
+
+/* Status Dots */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    padding: 5px 15px;
+    border-radius: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    margin-bottom: 15px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.dot-neutral { height: 10px; width: 10px; background-color: #ccc; border-radius: 50%; display: inline-block; }
+.dot-green { height: 10px; width: 10px; background-color: #28a745; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #28a745; }
+.dot-red { height: 10px; width: 10px; background-color: #dc3545; border-radius: 50%; display: inline-block; }
+
+/* Duty Cards Grid Layout */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Responsive Grid */
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.duty-card {
+    background: white;
+    border-left: 5px solid #ff9800; /* Orange Accent */
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+}
+
+.duty-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.duty-date { font-size: 14px; color: #888; margin-bottom: 5px; display: block; }
+.duty-place { font-size: 18px; font-weight: bold; color: #333; margin: 5px 0; }
+.duty-time { background: #fff3e0; color: #e65100; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; display: inline-block; }
+
+/* Styled Table for History */
+.styled-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.styled-table th {
+    background-color: #ff9800;
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.styled-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+/* --- TOAST NOTIFICATIONS --- */
+#toast-box {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 250px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.toast.success { border-left: 5px solid #28a745; }
+.toast.error { border-left: 5px solid #dc3545; }
+.toast.warning { border-left: 5px solid #ffc107; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+#password-strength-text {
+    font-size: 13px;
+    font-weight: 600;
+    display: block;
+    margin-top: 6px;
+}
+
+.strength-weak {
+    color: #dc3545; /* red */
+}
+
+.strength-medium {
+    color: #ffc107; /* yellow */
+}
+
+.strength-strong {
+    color: #28a745; /* green */
+}
+
+/* 8️⃣ 27: Loading Skeleton Animation */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 4px;
+    color: transparent !important;
+    min-height: 20px;
+}
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* 5️⃣ 18: Duty Calendar Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+.calendar-day {
+    background: #fff;
+    border: 1px solid #ddd;
+    min-height: 80px;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.calendar-day.has-duty {
+    border-left: 4px solid #ff9800;
+    background: #fff8e1;
+}
+.calendar-header {
+    font-weight: bold;
+    text-align: center;
+    background: #eee;
+    padding: 5px;
+}
+
+/* 3️⃣ 14: Attendance Anomaly (Red Flag) */
+.row-anomaly {
+    background-color: #ffe6e6 !important; /* Light Red */
+    border-left: 4px solid #dc3545;
+}
+
+/* 6️⃣ 19: Broadcast Box */
+.broadcast-ticker {
+    background: #333;
+    color: white;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

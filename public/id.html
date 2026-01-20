@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sewadar ID Card – Flip</title>
+
+<style>
+body{
+    background:#f2f2f2;
+    font-family:Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:50px;
+}
+
+/* CARD WRAPPER */
+.card-wrapper{
+    perspective:1000px;
+}
+
+/* CARD */
+.card{
+    width:400px;
+    height:250px;
+    position:relative;
+    transform-style:preserve-3d;
+    transition:transform 0.8s ease;
+    cursor:pointer;
+}
+
+/* FLIP */
+.card-wrapper:hover .card,
+.card-wrapper.flip .card{
+    transform:rotateY(180deg);
+}
+
+/* FRONT & BACK */
+.card-face{
+    position:absolute;
+    width:100%;
+    height:100%;
+    backface-visibility:hidden;
+    border:2px solid #6b3e26;
+    border-radius:15px;
+    background:white;
+    overflow:hidden;
+}
+
+/* HEADER */
+.header{
+    background:#6b3e26;
+    color:white;
+    padding:10px 15px;        /* ↓ reduced padding */
+    position:relative;
+    text-align:center;
+    font-weight:bold;
+    font-size:25px;          /* ↓ smaller text */
+    height:36px;             /* ↓ fixed small height */
+    line-height:30px;
+}
+
+/* LOGO LEFT */
+.header img{
+    width:40px;              /* ↓ smaller logo */
+    height:50px;
+    background:white;
+    border-radius:4px;
+    object-fit:contain;
+    position:absolute;
+    left:10px;
+    top:50%;
+    transform:translateY(-50%);
+}
+
+
+/* FRONT BODY */
+.body{
+    display:flex;
+    padding:10px;
+    font-size:13px;
+}
+
+.info{
+    flex:1;
+}
+
+.photo{
+    width:110px;
+    height:130px;
+    border:2px solid #6b3e26;
+    border-radius:8px;
+    object-fit:contain;
+}
+
+/* BACK */
+.card-back{
+    transform:rotateY(180deg);
+}
+
+.qr{
+    height:180px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.qr img{
+    width:120px;
+    height:120px;
+    border:2px dashed #6b3e26;
+    padding:0px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card-wrapper" onclick="this.classList.toggle('flip')">
+
+    <div class="card">
+
+        <!-- FRONT -->
+        <div class="card-face card-front">
+
+            <div class="header">
+                <img src="logo.png" alt="Logo">
+                RSSB RUDRAPUR
+            </div>
+
+            <div class="body">
+                <div class="info">
+                    <p><b>Name:</b> Amit Padhan</p>
+                    <p><b>Badge No:</b> AM-123456</p>
+                    <p><b>Title:</b> Sewadar</p>
+                    <p><b>Issue Date:</b> 01-01-2026</p>
+                    <p><b>Expiry Date:</b> 31-12-2027</p>
+                </div>
+
+                <img src="logo.png" class="photo">
+            </div>
+
+        </div>
+
+        <!-- BACK -->
+        <div class="card-face card-back">
+
+            <div class="header">
+                <img src="logo.png" alt="Logo">
+                RSSB RUDRAPUR
+            </div>
+
+            <div class="qr">
+                <img src="logo.png" alt="QR">
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

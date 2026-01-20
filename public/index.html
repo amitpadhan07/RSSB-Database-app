@@ -14,6 +14,7 @@
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 
 <body>
@@ -27,10 +28,9 @@
 
             <input id="username" placeholder="Username">
             <div class="password-wrapper">
-    <input id="password" type="password" placeholder="Password">
-    <i class="fa-solid fa-eye toggle-password"
-   onclick="togglePasswordById('password', this)"></i>
-</div>
+                <input id="password" type="password" placeholder="Password">
+                <i class="fa-solid fa-eye toggle-password" onclick="togglePasswordById('password', this)"></i>
+            </div>
             <button onclick="login()">Login</button>
 
             <a href="#" onclick="showForgotPasswordScreen()">Forgot Password?</a>
@@ -55,25 +55,40 @@
     <div id="admin-dashboard" class="dashboard-container" style="display:none;">
         <header>
             <h1>Admin Dashboard</h1>
-            <div style="font-size: 14px; margin-left: auto;">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+            <div style="margin-bottom: 20px;">
+                <button onclick="getMyCurrentLocation()" class="btn-primary" style="background-color: #dc3545;">
+                    📍 Get My Current Location
+                </button>
             </div>
         </header>
+        <div style="font-size: 14px; margin-left: auto;">
+        </div>
 
         <nav class="sidebar-menu">
             <button onclick="showAdminSection('add-section')">Add Member</button>
             <button onclick="showAdminSection('view-section')">View All Members</button>
             <button onclick="showAdminSection('print-list-section')">Print List</button>
-            <button onclick="showAdminSection('admin-dashboard-section'); loadAnalytics();">
-        📊 Dashboard Analytics
-    </button>
+            <button onclick="showAdminSection('admin-dashboard-section'); loadAnalytics();">📊 Dashboard
+                Analytics</button>
             <button onclick="showAdminSection('manage-requests-section')">Manage Action Requests</button>
             <button onclick="showAdminSection('manage-users-section')">Manage Users</button>
+            <button onclick="showAdminSection('admin-duty-section'); loadAllDuties();">👮 Manage Duties</button>
+            <button onclick="showAdminSection('admin-broadcast-section')">📢 Broadcast Message</button>
+            <button onclick="showAdminSection('admin-leave-section'); loadAdminLeaves();"><i
+                    class="fa fa-calendar-minus"></i> Leave Requests</button>
+            <button onclick="showAdminSection('admin-messages-section'); loadAdminMessages();">📩 Inbox (Sewadar
+                Messages)</button>
             <button onclick="showAdminSection('admin-profile-section'); viewMyProfile();">👤 My Profile</button>
             <button onclick="showAdminSection('admin-settings-section')">⚙️ Settings</button>
             <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
         </nav>
 
         <main class="content-area">
+            <div id="live-alerts-box"
+                style="display:none; background:#fff3cd; color:#856404; padding:10px; margin-bottom:20px; border:1px solid #ffeeba; border-radius:4px; text-align:center;">
+                <strong>🔔 LIVE ALERT:</strong> <span id="alert-text"></span>
+            </div>
             <section id="member-detail-section" style="display:none;"></section>
 
             <section id="add-section" style="display:none;">
@@ -173,26 +188,28 @@
                     <button onclick="clearAllSelections()">Clear Selections</button>
                 </div>
                 <div id="records-table-container">
-                    <table id="records-table">
-                        <thead>
-                            <tr>
-                                <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
-                                <th>SR NO.</th>
-                                <th>BADGE TYPE</th>
-                                <th>BADGE NO.</th>
-                                <th>PIC</th>
-                                <th>NAME</th>
-                                <th>PARENT NAME</th>
-                                <th>GENDER</th>
-                                <th>PHONE</th>
-                                <th>BIRTH DATE</th>
-                                <th>AGE</th>
-                                <th>ADDRESS</th>
-                                <th>ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-records-body"></tbody>
-                    </table>
+                    <div class="table-container">
+                        <table id="records-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                                    <th>SR NO.</th>
+                                    <th>BADGE TYPE</th>
+                                    <th>BADGE NO.</th>
+                                    <th>PIC</th>
+                                    <th>NAME</th>
+                                    <th>PARENT NAME</th>
+                                    <th>GENDER</th>
+                                    <th>PHONE</th>
+                                    <th>BIRTH DATE</th>
+                                    <th>AGE</th>
+                                    <th>ADDRESS</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-records-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -201,23 +218,32 @@
                 <div id="printable-list-content">
                 </div>
             </section>
-             <section id="manage-requests-section" style="display:none;">
+            <section id="manage-requests-section" style="display:none;">
                 <h2>Manage Action Requests (Moderation Queue)</h2>
 
-<div class="request-action-bar">
-    <button onclick="loadPendingRequests()" class="btn-secondary">
-        Refresh Pending Requests
-    </button>
+                <div class="request-action-bar">
+                    <button onclick="loadPendingRequests()" class="btn-secondary">
+                        Refresh Pending Requests
+                    </button>
 
-    <button onclick="bulkApproveRequests()" class="btn-approve">
-        ✅ Accept Selected Requests
-    </button>
-</div>
+                    <button onclick="bulkApproveRequests()" class="btn-approve">
+                        ✅ Accept Selected Requests
+                    </button>
+                </div>
 
-<div id="requests-list-container"></div>
-<div id="request-details-view" style="display:none;"></div>
+                <div id="requests-list-container"></div>
+                <div id="request-details-view" style="display:none;"></div>
             </section>
+            <section id="admin-messages-section" style="display:none;">
+                <h2>📥 Sewadar Messages (Inbox)</h2>
+                <div style="margin-bottom: 20px;">
+                    <button onclick="loadAdminMessages()" class="btn-secondary">Refresh Inbox</button>
+                </div>
 
+                <div id="admin-messages-container" class="cards-grid">
+                    <p>Loading messages...</p>
+                </div>
+            </section>
             <section id="manage-users-section" style="display: none;">
                 <h2>Admin Control: User & System Management ⚙️</h2>
 
@@ -261,6 +287,7 @@
                                 <select id="add-user-role" required>
                                     <option value="user">User</option>
                                     <option value="admin">Admin</option>
+                                    <option value="sewadar">Sewadar</option>
                                 </select>
                             </div>
 
@@ -277,7 +304,7 @@
                                 <label for="reset-username">Target Username:</label>
                                 <input type="text" id="reset-username" required>
                             </div>
-                            
+
                             <button type="submit" class="btn-primary btn-warning">Force Reset Password</button>
                         </form>
                     </section>
@@ -314,87 +341,183 @@
 
                 </div>
             </section>
-            
+            <section id="admin-duty-section" style="display:none;">
+                <h2>Manage Sewadar Duties (Admin Control)</h2>
+
+                <div style="margin-bottom: 20px;">
+                    <button onclick="autoScheduleDuties()" class="btn-primary" style="background-color: #6f42c1;"> 🤖
+                        Auto-Schedule Duties</button>
+                </div>
+
+                <div class="form-card" style="max-width: 800px; border-top: 4px solid #dc3545;">
+                    <h3 id="admin-duty-form-title">Assign New Duty</h3>
+
+                    <form onsubmit="event.preventDefault(); saveDuty();">
+                        <input type="hidden" id="admin-duty-id">
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex:1;">
+                                <label>Badge No:</label>
+                                <input type="text" id="admin-duty-badge" placeholder="AM-..."
+                                    onblur="formatBadgeNumber('admin-duty-badge')" required>
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <label>Date:</label>
+                                <input type="date" id="admin-duty-date" required>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex:1;">
+                                <label>Place:</label>
+                                <input type="text" id="admin-duty-place" placeholder="Shoe Stand" required>
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <label>Time (Duration):</label>
+                                <input type="text" id="admin-duty-duration" placeholder="8AM - 2PM" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="admin-duty-submit-btn" class="btn-primary">Assign Duty</button>
+                        <button type="button" id="admin-duty-cancel-btn" class="btn-secondary" style="display:none;"
+                            onclick="resetDutyForm()">Cancel Edit</button>
+                    </form>
+                </div>
+                <h3>📊 Sewadar Attendance Summary</h3>
+
+                <div class="form-group">
+                    <input type="text" id="attendance-search-input" placeholder="Enter Sewadar Username or Badge No.">
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button onclick="loadAttendanceSummaryBySearch('week')">This Week</button>
+                    <button onclick="loadAttendanceSummaryBySearch('month')">This Month</button>
+
+                </div>
+
+                <div id="attendance-summary-box-admin" class="form-card">
+                    <p>Enter username or badge no.</p>
+                </div>
+
+<h3>📅 Attendance Custom Report</h3>
+<div style="display:flex; gap:10px; margin-bottom:15px;">
+    <input type="date" id="report-start-date">
+    <input type="date" id="report-end-date">
+    <button onclick="generateAttendanceReport()" class="btn-secondary">📄 View & Download Report</button>
+</div>
+<div id="attendance-report-output"></div>
+
+                <div class="table-container">
+                    <h3 style="margin-top: 30px;">All Assigned Duties</h3>
+                    <button onclick="loadAllDuties()" class="btn-secondary">Refresh List</button>
+                    <div id="admin-duty-list-container" style="margin-top:15px;"></div>
+                </div>
+            </section>
             <section id="admin-profile-section" style="display:none;">
-    <h2>My Admin Profile</h2>
-    <div id="admin-profile-details"></div>
-</section>
+                <h2>My Admin Profile</h2>
+                <div id="admin-profile-details"></div>
+            </section>
 
             <section id="admin-settings-section" style="display:none;">
-    <h2>My Account Settings</h2>
+                <h2>My Account Settings</h2>
 
-    <div id="admin-change-password-section" class="form-card">
-        <h3>Change My Password</h3>
+                <div id="admin-change-password-section" class="form-card">
+                    <h3>Change My Password</h3>
 
-        <form id="admin-change-password-form"
-              onsubmit="event.preventDefault(); userChangePassword();">
+                    <form id="admin-change-password-form" onsubmit="event.preventDefault(); userChangePassword();">
 
-            <div class="form-group">
-                <label for="admin-old-password">Current Password:</label>
-                <input type="password" id="admin-old-password" required>
-            </div>
+                        <div class="form-group">
+                            <label for="admin-old-password">Current Password:</label>
+                            <input type="password" id="admin-old-password" required>
+                        </div>
 
-            <div class="form-group">
-                <label for="admin-new-password">New Password:</label>
-                <input type="password" id="admin-new-password" required minlength="6">
-            </div>
+                        <div class="form-group">
+                            <label for="admin-new-password">New Password:</label>
+                            <input type="password" id="admin-new-password" required minlength="6">
+                            <small id="password-strength-text"></small>
+                        </div>
 
-            <div class="form-group">
-                <label for="admin-confirm-password">Confirm New Password:</label>
-                <input type="password" id="admin-confirm-password" required minlength="6">
-            </div>
+                        <div class="form-group">
+                            <label for="admin-confirm-password">Confirm New Password:</label>
+                            <input type="password" id="admin-confirm-password" required minlength="6">
+                        </div>
 
-            <button type="submit" class="btn-primary">Update Password</button>
-        </form>
-    </div>
-</section>
+                        <button type="submit" class="btn-primary">Update Password</button>
+                    </form>
+                </div>
+            </section>
 
-<section id="admin-dashboard-section" style="display:none;">
-    <h2>📊 System Analytics</h2>
+            <section id="admin-dashboard-section" style="display:none;">
+                <h2>📊 System Analytics</h2>
 
-    <!-- STATS CARDS -->
-    <div class="stats-cards">
-        <div class="card">
-            Total Members
-            <h3 id="totalMembers">0</h3>
-        </div>
-        <div class="card">
-            Active Users
-            <h3 id="activeUsers">0</h3>
-        </div>
-        <div class="card">
-            Pending Requests
-            <h3 id="pendingRequests">0</h3>
-        </div>
-    </div>
+                <!-- STATS CARDS -->
+                <div class="stats-cards">
+                    <div class="card">
+                        Total Members
+                        <h3 id="totalMembers">0</h3>
+                    </div>
+                    <div class="card">
+                        Active Users
+                        <h3 id="activeUsers">0</h3>
+                    </div>
+                    <div class="card">
+                        Pending Requests
+                        <h3 id="pendingRequests">0</h3>
+                    </div>
+                </div>
 
-    <!-- CHARTS GRID -->
-    <div class="analytics-grid">
+                <!-- CHARTS GRID -->
+                <div class="analytics-grid">
 
-        <div>
-            <h3 class="chart-title">Badge Type Distribution</h3>
-            <div class="chart-container">
-                <canvas id="badgeTypeChart"></canvas>
-            </div>
-        </div>
+                    <div>
+                        <h3 class="chart-title">Badge Type Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="badgeTypeChart"></canvas>
+                        </div>
+                    </div>
 
-        <div>
-            <h3 class="chart-title">Gender Distribution</h3>
-            <div class="chart-container">
-                <canvas id="genderChart"></canvas>
-            </div>
-        </div>
+                    <div>
+                        <h3 class="chart-title">Gender Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="genderChart"></canvas>
+                        </div>
+                    </div>
 
-        <div>
-            <h3 class="chart-title">Age Group Distribution</h3>
-            <div class="chart-container">
-                <canvas id="ageChart"></canvas>
-            </div>
-        </div>
+                    <div>
+                        <h3 class="chart-title">Age Group Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="ageChart"></canvas>
+                        </div>
+                    </div>
 
-    </div>
-</section>
+                </div>
+            </section>
 
+            <section id="admin-leave-section" style="display:none;">
+                <h2>Manage Leave Requests</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name / Badge</th>
+                                <th>Dates</th>
+                                <th>Reason</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-leave-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="admin-broadcast-section" style="display:none;">
+                <h2>📢 Send Broadcast Message</h2>
+                <div class="form-card">
+                    <textarea id="broadcast-msg" placeholder="Enter announcement for all users..."
+                        style="width:100%; height:100px;"></textarea>
+                    <button onclick="sendBroadcast()" class="btn-primary" style="margin-top:10px;">Send to All</button>
+                </div>
+            </section>
 
 
 
@@ -404,6 +527,11 @@
     <div id="user-dashboard" class="dashboard-container" style="display:none;">
         <header>
             <h1>User Dashboard</h1>
+            <div style="margin-bottom: 20px;">
+                <button onclick="getMyCurrentLocation()" class="btn-primary" style="background-color: #dc3545;">
+                    📍 Get My Current Location
+                </button>
+            </div>
         </header>
 
         <nav class="sidebar-menu">
@@ -411,6 +539,7 @@
             <button onclick="showUserSection('user-view-section')">View All Records</button>
             <button onclick="showUserSection('user-print-list-section')">Print List</button>
             <button onclick="showUserSection('user-requests-section')">View My Requests</button>
+            <button onclick="showUserSection('user-duty-section')">Manage Duties</button>
             <button onclick="showUserSection('user-profile-section'); viewMyProfile();">👤 My Profile</button>
             <button onclick="showUserSection('user-settings-section')">⚙️ Settings</button>
             <button onclick="logout()" class="sidebar-logout-btn">Logout</button>
@@ -527,26 +656,28 @@
                     <button onclick="clearAllSelections()">Clear Selections</button>
                 </div>
                 <div id="records-table-container">
-                    <table id="records-table">
-                        <thead>
-                            <tr>
-                                <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
-                                <th>SR NO.</th>
-                                <th>BADGE TYPE</th>
-                                <th>BADGE NO.</th>
-                                <th>PIC</th>
-                                <th>NAME</th>
-                                <th>PARENT NAME</th>
-                                <th>GENDER</th>
-                                <th>PHONE</th>
-                                <th>BIRTH DATE</th>
-                                <th>AGE</th>
-                                <th>ADDRESS</th>
-                                <th>ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="user-records-body"></tbody>
-                    </table>
+                    <div class="table-container">
+                        <table id="records-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                                    <th>SR NO.</th>
+                                    <th>BADGE TYPE</th>
+                                    <th>BADGE NO.</th>
+                                    <th>PIC</th>
+                                    <th>NAME</th>
+                                    <th>PARENT NAME</th>
+                                    <th>GENDER</th>
+                                    <th>PHONE</th>
+                                    <th>BIRTH DATE</th>
+                                    <th>AGE</th>
+                                    <th>ADDRESS</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-records-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -567,10 +698,80 @@
                 </div>
             </section>
 
+            <section id="user-duty-section" style="display:none;">
+                <h2>Manage Sewadar Duties</h2>
+                <div id="user-broadcast-box" class="broadcast-ticker" style="display:none;">
+    <i class="fa fa-bullhorn"></i> <span id="user-latest-broadcast-text"></span>
+</div>
+
+                <div class="form-card" style="max-width: 800px; border-top: 4px solid #007bff;">
+                    <h3 id="duty-form-title">Assign New Duty</h3>
+                    <form onsubmit="event.preventDefault(); saveDuty();">
+                        <input type="hidden" id="duty-id">
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex:1;">
+                                <label>Badge No:</label>
+                                <input type="text" id="duty-badge" placeholder="AM-..."
+                                    onblur="formatBadgeNumber('duty-badge')" required>
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <label>Date:</label>
+                                <input type="date" id="duty-date" required>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex:1;">
+                                <label>Place:</label>
+                                <input type="text" id="duty-place" placeholder="Shoe Stand" required>
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <label>Time (Duration):</label>
+                                <input type="text" id="duty-duration" placeholder="8AM - 2PM" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="duty-submit-btn" class="btn-primary">Assign Duty</button>
+                        <button type="button" id="duty-cancel-btn" class="btn-secondary" style="display:none;"
+                            onclick="resetDutyForm()">Cancel Edit</button>
+                    </form>
+                </div>
+                <h3>📊 Sewadar Attendance Summary</h3>
+
+                <div class="form-group">
+                    <input type="text" id="user-attendance-search-input"
+                        placeholder="Enter Sewadar Username or Badge No.">
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button onclick="loadUserAttendanceSummary('week')">This Week</button>
+                    <button onclick="loadUserAttendanceSummary('month')">This Month</button>
+                </div>
+
+                <div id="user-attendance-summary-box" class="form-card">
+                    <p>Enter username or badge no.</p>
+                </div>
+
+                <h3>📅 Attendance Custom Report</h3>
+<div style="display:flex; gap:10px; margin-bottom:15px;">
+    <input type="date" id="report-start-date">
+    <input type="date" id="report-end-date">
+    <button onclick="generateAttendanceReport()" class="btn-secondary">📄 View & Download Report</button>
+</div>
+<div id="attendance-report-output"></div>
+
+                <h3 style="margin-top:30px;">All Active Duties</h3>
+                <button onclick="loadAllDuties()" class="btn-secondary"><i class="fa fa-refresh"></i> Refresh
+                    List</button>
+
+                <div id="duty-list-container" class="table-container" style="margin-top: 15px;">
+                </div>
+            </section>
+
             <section id="user-profile-section" style="display:none;">
                 <h2>My Profile</h2>
                 <div id="user-profile-details">
-                    </div>
+                </div>
             </section>
 
             <section id="user-settings-section" style="display:none;">
@@ -586,6 +787,7 @@
                         <div class="form-group">
                             <label for="user-new-password">New Password:</label>
                             <input type="password" id="user-new-password" required minlength="6">
+                            <small id="password-strength-text-user"></small>
                         </div>
                         <div class="form-group">
                             <label for="user-confirm-password">Confirm New Password:</label>
@@ -598,6 +800,174 @@
 
         </main>
     </div>
+
+    <div id="sewadar-dashboard" class="dashboard-container" style="display:none;">
+        <header style="background-color: #ff9800;">
+            <h1>Sewadar Portal</h1>
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+            <div style="margin-bottom: 20px;">
+                <button onclick="getMyCurrentLocation()" class="btn-primary" style="background-color: #dc3545;">
+                    📍 Get My Current Location
+                </button>
+            </div>
+        </header>
+
+        <nav class="sidebar-menu">
+            <div style="text-align: center; padding: 20px 0; color: #555;">
+                <i class="fa-solid fa-user-circle" style="font-size: 50px; color: #ff9800;"></i>
+                <h3 id="sewadar-welcome-name" style="margin: 10px 0 0 0; font-size: 16px; color: #333;">Welcome</h3>
+                <span style="font-size: 12px; color: #777;">Sewadar Access</span>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #ddd; margin: 0 15px 10px 15px;">
+
+            <button onclick="showSewadarSection('sewadar-home-section')"><i class="fa fa-home"></i> Dashboard</button>
+            <button onclick="showSewadarSection('sewadar-history-section'); loadSewadarHistory();"><i
+                    class="fa fa-history"></i> My History</button>
+            <button onclick="showSewadarSection('sewadar-profile-section'); viewSewadarProfile();"><i
+                    class="fa fa-user"></i> My Profile</button>
+            <button onclick="showSewadarSection('sewadar-contact-section')"><i class="fa fa-envelope"></i> Contact
+                Admin</button>
+            <button onclick="logout()" class="sidebar-logout-btn"><i class="fa fa-sign-out"></i> Logout</button>
+        </nav>
+
+        <main class="content-area">
+
+            <section id="sewadar-home-section">
+                <h2>Dashboard Overview</h2>
+
+                <div style="display:flex; gap:10px; justify-content:center; margin-bottom:20px;">
+                    <button onclick="showDigitalICard()" class="btn-secondary" style="font-size:13px;">🆔
+                        I-Card</button>
+                    <button onclick="requestLeave()" class="btn-secondary" style="font-size:13px;">📅 Leave</button>
+                </div>
+
+                <div id="sewadar-broadcast-box" class="broadcast-ticker" style="display:none;">
+    <i class="fa fa-bullhorn"></i> <span id="sewadar-latest-broadcast-text"></span>
+</div>
+
+
+                <div class="attendance-hero-card">
+                    <div class="status-indicator">
+                        <span id="attendance-dot" class="dot-neutral"></span>
+                        <span id="attendance-text-status">Status: Checking...</span>
+                    </div>
+                    <h3>Mark Attendance</h3>
+
+                    <button onclick="markMyAttendanceGeo()" class="punch-btn">
+                        <i class="fa-solid fa-location-dot"></i> GPS PUNCH IN/OUT
+                    </button>
+                    <p id="attendance-last-action" style="margin-top: 15px; font-size: 13px; color: #888;">Last Action:
+                        None</p>
+                </div>
+                <h3 style="margin-top:30px;">📊 Attendance Summary</h3>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button onclick="loadMyAttendanceSummary('week')">This Week</button>
+                    <button onclick="loadMyAttendanceSummary('month')">This Month</button>
+                </div>
+                <h3>📅 Attendance Custom Report</h3>
+<div style="display:flex; gap:10px; margin-bottom:15px;">
+    <input type="date" id="report-start-date">
+    <input type="date" id="report-end-date">
+    <button onclick="generateAttendanceReport()" class="btn-secondary">📄 View & Download Report</button>
+</div>
+<div id="attendance-report-output"></div>
+
+                <div id="attendance-summary-box" class="form-card">
+                    <p>Select a range to view summary.</p>
+                </div>
+
+                <h3 style="margin-top:30px; border-bottom: 2px solid #ff9800; padding-bottom: 5px; color:#333;">
+                    <i class="fa fa-calendar-alt"></i> My Upcoming Duties
+                </h3>
+                <div id="my-upcoming-duties" class="cards-grid">
+                    <p style="color:#666; text-align:center;">Loading duties...</p>
+                </div>
+
+                <h3 style="margin-top:30px;">🗓️ My Duty Calendar</h3>
+<div id="sewadar-duty-calendar" class="calendar-grid"></div>
+
+            </section>
+
+            <section id="sewadar-history-section" style="display:none;">
+                <h2>Attendance History</h2>
+                <div class="table-container">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="my-history-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="sewadar-profile-section" style="display:none;">
+                <h2>My Profile & Settings</h2>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+
+                    <div class="form-card" style="flex: 1; min-width: 300px;">
+                        <h3 style="border-bottom: 2px solid #ff9800; padding-bottom: 10px;">
+                            <i class="fa fa-id-card"></i> Sewadar Details
+                        </h3>
+                        <div id="sewadar-profile-details">Loading...</div>
+                    </div>
+
+                    <div class="form-card" style="flex: 1; min-width: 300px;">
+                        <h3 style="border-bottom: 2px solid #ff9800; padding-bottom: 10px;">
+                            <i class="fa fa-lock"></i> Change Password
+                        </h3>
+                        <form onsubmit="event.preventDefault(); sewadarChangePassword();">
+                            <div class="form-group">
+                                <label>Current Password:</label>
+                                <input type="password" id="sewadar-old-password" required
+                                    placeholder="Enter current password">
+                            </div>
+                            <div class="form-group">
+                                <label>New Password:</label>
+                                <input type="password" id="sewadar-new-password" required minlength="6"
+                                    placeholder="Min 6 characters">
+                                <small id="sewadar-password-strength-text"></small>
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm New Password:</label>
+                                <input type="password" id="sewadar-confirm-password" required minlength="6"
+                                    placeholder="Re-enter new password">
+                            </div>
+                            <button type="submit" class="btn-primary"
+                                style="background-color: #ff9800; border: none; width: 100%;">
+                                Update Password
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sewadar-contact-section" style="display:none;">
+                <h2>Contact Administration</h2>
+                <div class="form-card" style="max-width: 100%;">
+                    <h3><i class="fa fa-paper-plane" style="color: #ff9800;"></i> Send a Message</h3>
+                    <p style="color:#666; font-size: 14px;">Have a query about your duty or need to request leave? Send
+                        a message directly to the admin.</p>
+
+                    <div class="form-group" style="max-width: 100%;">
+                        <label>Your Message:</label>
+                        <textarea id="sewadar-msg" placeholder="Type your message here..."
+                            style="height: 120px; padding: 15px;"></textarea>
+                    </div>
+                    <button onclick="sendAdminMessage()" class="btn-primary"
+                        style="background-color: #ff9800; border: none;">Send Message</button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+    <div id="toast-box"></div>
 
     <button class="scroll-to-top" onclick="window.scrollTo(0, 0)">↑</button>
 

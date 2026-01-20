@@ -1,5 +1,5 @@
-// --- LOAD ENVIRONMENT VARIABLES FIRST ---
-require('dotenv').config(); 
+// --- IMPORTS ---
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -7,17 +7,30 @@ const multer = require('multer');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-
-
-
-// CLOUDINARY IMPORTS
+const http = require('http'); // New
+const { Server } = require("socket.io"); // New
+const QRCode = require('qrcode'); // New
+const cron = require('node-cron'); // New
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const moment = require('moment');
 
+// --- SETUP ---
 const app = express();
+const server = http.createServer(app); // Wrap Express
+const io = new Server(server, { cors: { origin: "*" } }); // Init Socket.io
+
 const port = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL;
+
+// --- GEOFENCE CONFIGURATION ---
+
+const RSSB_CENTER_LAT = 27.1766701;
+const RSSB_CENTER_LON = 78.0080745;
+
+const GEOFENCE_RADIUS_METERS = 500;
+const LATE_CUTOFF_HOUR = 9;
+const LATE_CUTOFF_MINUTE = 15;
 
 // --- 1. DATABASE CONFIGURATION (Secured) ---
 const pool = new Pool({
@@ -58,20 +71,21 @@ app.get('/reset-password', (req, res) => {
 
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 
+
 const client = SibApiV3Sdk.ApiClient.instance;
 client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
+
+// --- SOCKET.IO CONNECTION ---
+io.on('connection', (socket) => {
+    console.log('Client connected:', socket.id);
+});
+
 // --- HELPER FUNCTIONS ---
 
-/**
- * Sends an email notification to a specified recipient.
- * Uses EMAIL_USER from environment variables.
- * @param {string} toEmail - The recipient's email address.
- * @param {string} subject - The subject line of the email.
- * @param {string} text - The plain text body of the email.
- */
+
 async function sendEmailNotification(toEmail, subject, text) {
     console.log(`[DEBUG] Preparing to send email to: ${toEmail}`);
 
@@ -107,6 +121,244 @@ function generateRandomPassword(length = 12) {
     return password;
 }
 
+// ====================================================
+// --- NEW FEATURES API ---
+// ====================================================
+
+// 1. AUTOMATED DUTY SCHEDULER
+app.post('/api/duty/auto-schedule', async (req, res) => {
+    const { startDate, days, assignedBy } = req.body;
+    try {
+        const users = await pool.query("SELECT badge_no FROM users WHERE role = 'sewadar' AND is_active = true");
+        const sewadars = users.rows;
+        
+        if (sewadars.length === 0) return res.json({ success: false, message: 'No active Sewadars found.' });
+
+        const places = ['Shoe Stand', 'Main Gate', 'Water Stall', 'Parking', 'Kitchen'];
+        let scheduleCount = 0;
+
+        for (let i = 0; i < days; i++) {
+            let date = new Date(startDate);
+            date.setDate(date.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+
+            for (let j = 0; j < 3; j++) { // Assign 3 random people per day
+                const randomPerson = sewadars[Math.floor(Math.random() * sewadars.length)];
+                const randomPlace = places[Math.floor(Math.random() * places.length)];
+                
+                const check = await pool.query("SELECT 1 FROM duty_roster WHERE badge_no=$1 AND duty_date=$2", [randomPerson.badge_no, dateStr]);
+                if (check.rows.length === 0) {
+                     await pool.query(
+                        "INSERT INTO duty_roster (badge_no, duty_date, place, duration, assigned_by) VALUES ($1, $2, $3, $4, $5)",
+                        [randomPerson.badge_no, dateStr, randomPlace, '09:00 AM - 05:00 PM', assignedBy]
+                    );
+                    scheduleCount++;
+                }
+            }
+        }
+        res.json({ success: true, message: `Auto-scheduled ${scheduleCount} duties!` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Scheduling failed.' });
+    }
+});
+
+// 2. GEOFENCED ATTENDANCE + LATE CHECK
+// Helper: Haversine Formula
+function getDistInM(lat1, lon1, lat2, lon2) {
+  var R = 6371e3; var dLat = (lat2-lat1)*(Math.PI/180); var dLon = (lon2-lon1)*(Math.PI/180); 
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*(Math.PI/180))*Math.cos(lat2*(Math.PI/180)) * Math.sin(dLon/2)*Math.sin(dLon/2); 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c;
+}
+
+app.post('/api/sewadar/mark-attendance-geo', async (req, res) => {
+    const { username, lat, lon, remarks } = req.body;
+
+    // 1. Geofence Check
+    const dist = getDistInM(lat, lon, RSSB_CENTER_LAT, RSSB_CENTER_LON);
+    if (dist > GEOFENCE_RADIUS_METERS) {
+        return res.json({ success: false, message: `Too far (${Math.round(dist)}m). Must be within 500m.` });
+    }
+
+    try {
+        // 2. Check agar aaj ki duty complete ho chuki hai (Already OUT marked today)
+        const checkOut = await pool.query(
+            "SELECT 1 FROM attendance_log WHERE username = $1 AND action_type = 'OUT' AND DATE(timestamp) = CURRENT_DATE",
+            [username]
+        );
+
+        if (checkOut.rows.length > 0) {
+            return res.json({ success: false, message: "⚠️ You have already completed your duty for today!" });
+        }
+
+        // 3. Normal Logic (IN or OUT)
+        const lastLog = await pool.query(
+            "SELECT * FROM attendance_log WHERE username = $1 AND DATE(timestamp) = CURRENT_DATE ORDER BY timestamp DESC LIMIT 1",
+            [username]
+        );
+
+        let action = 'IN';
+        let isLate = false;
+        let duration = 0;
+
+        if (lastLog.rows.length > 0 && lastLog.rows[0].action_type === 'IN') {
+            action = 'OUT';
+            const inTime = new Date(lastLog.rows[0].timestamp);
+            duration = Math.floor((new Date() - inTime) / 60000); // Minutes
+        } else {
+            // Check Late
+            const now = new Date();
+            const limit = new Date();
+            limit.setHours(LATE_CUTOFF_HOUR, LATE_CUTOFF_MINUTE, 0);
+            if (now > limit) isLate = true;
+        }
+
+        await pool.query(
+    "INSERT INTO attendance_log (username, action_type, timestamp, duration_minutes, is_late, remarks) VALUES ($1, $2, NOW(), $3, $4, $5)",
+    [username, action, duration, isLate, remarks || ''] // <--- Pass remarks
+);
+
+        res.json({ success: true, action, isLate, duration, message: `Marked ${action} Successfully!` });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// 3. QR CODE GENERATOR
+app.get('/api/sewadar/qrcode/:badgeNo', async (req, res) => {
+    try {
+        const qr = await QRCode.toDataURL(req.params.badgeNo);
+        res.json({ success: true, qrCode: qr });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// 4. LEAVE REQUESTS
+app.post('/api/leave/request', async (req, res) => {
+    const { badgeNo, startDate, endDate, reason } = req.body;
+    try {
+        await pool.query("INSERT INTO leave_requests (badge_no, start_date, end_date, reason) VALUES ($1, $2, $3, $4)", [badgeNo, startDate, endDate, reason]);
+        io.emit('admin-alert', { message: `New Leave Request: ${badgeNo}`, type: 'info' });
+        res.json({ success: true, message: 'Request submitted.' });
+    } catch (e) { res.status(500).json({ success: false, message: 'Error.' }); }
+});
+
+// --- CRON JOB: AUTO ABSENT MARKING (11:00 PM Daily) ---
+cron.schedule('0 23 * * *', async () => {
+    console.log('Running Auto-Absent Check...');
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+        // 1. Get everyone assigned a duty today
+        const roster = await pool.query("SELECT badge_no FROM duty_roster WHERE duty_date = $1", [today]);
+        
+        for (const row of roster.rows) {
+            const userRes = await pool.query("SELECT username FROM users WHERE badge_no = $1", [row.badge_no]);
+            if (userRes.rows.length === 0) continue;
+            const username = userRes.rows[0].username;
+
+            // 2. Check if they have an 'IN' record
+            const check = await pool.query("SELECT 1 FROM attendance_log WHERE username = $1 AND DATE(timestamp) = $2 AND action_type = 'IN'", [username, today]);
+
+            // 3. If missing, mark ABSENT
+            if (check.rows.length === 0) {
+                await pool.query("INSERT INTO attendance_log (username, action_type, timestamp, is_late, duration_minutes) VALUES ($1, 'ABSENT', NOW(), false, 0)", [username]);
+                io.emit('admin-alert', { message: `⚠️ ${username} marked ABSENT automatically.`, type: 'warning' });
+            }
+        }
+    } catch (err) { console.error("Cron Error:", err); }
+});
+
+
+// --- ADMIN: GET ALL PENDING LEAVES ---
+app.get('/api/admin/leaves', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT l.*, p.name, p.badge_type 
+            FROM leave_requests l
+            JOIN persons p ON l.badge_no = p.badge_no
+            WHERE l.status = 'Pending'
+            ORDER BY l.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: 'DB Error' }); }
+});
+
+// --- ADMIN: APPROVE/REJECT LEAVE ---
+app.get('/api/admin/leaves', async (req, res) => {
+    try {
+        // Changed JOIN to LEFT JOIN so requests show even if member record is missing
+        const result = await pool.query(`
+            SELECT l.*, p.name, p.badge_type 
+            FROM leave_requests l
+            LEFT JOIN persons p ON l.badge_no = p.badge_no
+            WHERE l.status = 'Pending'
+            ORDER BY l.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: 'DB Error' }); }
+});
+
+// 📊 Sewadar Attendance Summary (Weekly / Monthly)
+app.get('/api/attendance-summary', async (req, res) => {
+    const { identifier, range } = req.query;
+
+    if (!identifier || !range) {
+        return res.status(400).json({ success: false, message: 'Missing parameters' });
+    }
+
+    let interval;
+    if (range === 'week') interval = '7 days';
+    else if (range === 'month') interval = '1 month';
+    else return res.status(400).json({ success: false, message: 'Invalid range' });
+
+    try {
+        // ✅ FIXED USER RESOLUTION (NO JOIN)
+        const userRes = await pool.query(
+            `
+            SELECT username
+            FROM users
+            WHERE username = $1
+               OR badge_no = $1
+            LIMIT 1
+            `,
+            [identifier]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.json({ success: false, message: 'User not found' });
+        }
+
+        const username = userRes.rows[0].username;
+
+        // ✅ Attendance summary
+        const result = await pool.query(
+            `
+            SELECT
+                COUNT(*) FILTER (WHERE action_type = 'IN') AS present_days,
+                COUNT(*) FILTER (WHERE action_type = 'ABSENT') AS absent_days,
+                COUNT(*) FILTER (WHERE is_late = true) AS late_days,
+                COALESCE(SUM(duration_minutes), 0) AS total_minutes
+            FROM attendance_log
+            WHERE username = $1
+              AND timestamp >= NOW() - INTERVAL '${interval}'
+            `,
+            [username]
+        );
+
+        res.json({
+            success: true,
+            username,
+            summary: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error('Attendance summary error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+
 
 // ====================================================
 // --- 1. AUTHENTICATION API ---
@@ -121,50 +373,82 @@ function generateRandomPassword(length = 12) {
  */
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    
+
     try {
-        // 1. Fetch user data (including the HASHED password and active status)
-        const userQuery = await pool.query(
-            "SELECT badge_no, username, role, password, is_active FROM users WHERE username = $1", 
-            [username] 
+        const result = await pool.query(
+            `SELECT username, password, role, is_active, failed_attempts, lock_until 
+             FROM users WHERE username = $1`,
+            [username]
         );
 
-        if (userQuery.rows.length === 0) {
-            // User not found, return generic error for security
+        if (result.rows.length === 0) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        const user = userQuery.rows[0];
-        const storedHash = user.password;
-        
-        // 2. Check if the user is ACTIVE
-        if (user.is_active === false) {
-             // Specific error message for disabled users
-             return res.status(403).json({ success: false, message: 'Your account is currently disabled. Please contact the administrator.' });
+        const user = result.rows[0];
+
+        // ❌ Account disabled
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, message: 'Account disabled. Contact admin.' });
         }
 
-        // 3. Verify the password hash using Bcrypt
-        const passwordMatch = await bcrypt.compare(password, storedHash);
+        // 🔒 Account locked
+        if (user.lock_until && new Date(user.lock_until) > new Date()) {
+            const mins = Math.ceil(
+                (new Date(user.lock_until) - new Date()) / 60000
+            );
+            return res.status(423).json({
+                success: false,
+                message: `Account locked. Try again in ${mins} minutes.`
+            });
+        }
 
-        if (passwordMatch) {
-            // 4. Update last_login timestamp (non-critical, fire-and-forget logging update)
+        // 🔑 Password check
+        const match = await bcrypt.compare(password, user.password);
+
+        if (!match) {
+            const attempts = (user.failed_attempts || 0) + 1;
+            let lockTime = null;
+
+            if (attempts >= 5) {
+                lockTime = new Date(Date.now() + 10 * 60000); // 10 min lock
+            }
+
             await pool.query(
-                "UPDATE users SET last_login = NOW() WHERE username = $1",
-                [username]
+                `UPDATE users 
+                 SET failed_attempts = $1, lock_until = $2 
+                 WHERE username = $3`,
+                [attempts, lockTime, username]
             );
 
-            // 5. Success response
-            const userRole = user.role;
-            res.json({ success: true, message: 'Login successful!', role: userRole });
-        } else {
-            // Password mismatch
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
+            return res.status(401).json({
+                success: false,
+                message: attempts >= 5
+                    ? 'Too many failed attempts. Account locked for 10 minutes.'
+                    : `Invalid credentials. Attempts left: ${5 - attempts}`
+            });
         }
-    } catch (error) {
-        console.error('Backend login error:', error);
-        res.status(500).json({ success: false, message: 'Server error during login.' });
+
+        // ✅ SUCCESS LOGIN → reset counters
+        await pool.query(
+            `UPDATE users 
+             SET failed_attempts = 0, lock_until = NULL, last_login = NOW()
+             WHERE username = $1`,
+            [username]
+        );
+
+        res.json({
+            success: true,
+            message: 'Login successful',
+            role: user.role
+        });
+
+    } catch (err) {
+        console.error('Login limiter error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
 
 
 // ====================================================
@@ -1560,9 +1844,277 @@ app.get('/api/admin/analytics', async (req, res) => {
     }
 });
 
+// ====================================================
+// --- DUTY & SEWADAR MANAGEMENT APIS ---
+// ====================================================
+
+// 1. Assign New Duty (Admin & User Both)
+app.post('/api/duty/assign', async (req, res) => {
+    const { badgeNo, date, place, duration, assignedBy } = req.body;
+    
+    // Validation check
+    if (!badgeNo || !date || !place || !duration) {
+        return res.status(400).json({ success: false, message: 'All fields are required.' });
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO duty_roster (badge_no, duty_date, place, duration, assigned_by)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [badgeNo, date, place, duration, assignedBy]
+        );
+        res.json({ success: true, message: 'Duty assigned successfully!' });
+    } catch (err) {
+        console.error("Error assigning duty:", err);
+        res.status(500).json({ success: false, message: 'Database error while assigning duty.' });
+    }
+});
+
+// 2. Fetch All Duties (For List - Admin & User)
+app.get('/api/duty/all', async (req, res) => {
+    try {
+        // JOIN with persons table to get the Name of the sewadar
+        const query = `
+            SELECT d.id, d.badge_no, d.duty_date, d.place, d.duration, d.assigned_by, p.name 
+            FROM duty_roster d
+            LEFT JOIN persons p ON d.badge_no = p.badge_no
+            ORDER BY d.duty_date DESC
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error fetching duties:", err);
+        res.status(500).json({ success: false, message: 'Failed to fetch duties.' });
+    }
+});
+
+// 3. Update Duty (Edit)
+app.put('/api/duty/:id', async (req, res) => {
+    const { id } = req.params;
+    const { date, place, duration } = req.body;
+    
+    try {
+        await pool.query(
+            `UPDATE duty_roster 
+             SET duty_date = $1, place = $2, duration = $3 
+             WHERE id = $4`,
+            [date, place, duration, id]
+        );
+        res.json({ success: true, message: 'Duty updated successfully!' });
+    } catch (err) {
+        console.error("Error updating duty:", err);
+        res.status(500).json({ success: false, message: 'Error updating duty.' });
+    }
+});
+
+// 4. Delete Duty
+app.delete('/api/duty/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM duty_roster WHERE id = $1', [id]);
+        res.json({ success: true, message: 'Duty deleted successfully!' });
+    } catch (err) {
+        console.error("Error deleting duty:", err);
+        res.status(500).json({ success: false, message: 'Error deleting duty.' });
+    }
+});
+
+// 5. Sewadar: Get My Upcoming Duties
+app.get('/api/sewadar/my-duties/:badgeNo', async (req, res) => {
+    const { badgeNo } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT * FROM duty_roster 
+             WHERE badge_no = $1 AND duty_date >= CURRENT_DATE 
+             ORDER BY duty_date ASC`,
+            [badgeNo]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error fetching duties' });
+    }
+});
+
+// 6. Sewadar: Mark Attendance
+app.post('/api/sewadar/attendance', async (req, res) => {
+    const { username } = req.body; 
+
+    try {
+        const lastLogQuery = await pool.query(
+            `SELECT action_type FROM attendance_log 
+             WHERE username = $1 AND DATE(timestamp) = CURRENT_DATE 
+             ORDER BY timestamp DESC LIMIT 1`,
+            [username]
+        );
+
+        let nextAction = 'IN'; 
+
+        if (lastLogQuery.rows.length > 0) {
+            const lastAction = lastLogQuery.rows[0].action_type;
+            if (lastAction === 'IN') {
+                nextAction = 'OUT';
+            } else if (lastAction === 'OUT') {
+                return res.json({ success: false, message: 'Aaj ki attendance complete ho chuki hai.' });
+            }
+        }
+
+        await pool.query(
+            `INSERT INTO attendance_log (username, action_type, timestamp) 
+             VALUES ($1, $2, NOW())`,
+            [username, nextAction]
+        );
+
+        res.json({ 
+            success: true, 
+            status: nextAction, 
+            message: nextAction === 'IN' ? 'Jai Babaji Ki! (IN Marked)' : 'Sewa Parwan! (OUT Marked)' 
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Attendance Failed.' });
+    }
+});
+
+// 7. Sewadar: History
+app.get('/api/sewadar/history/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT action_type, timestamp FROM attendance_log 
+             WHERE username = $1 
+             ORDER BY timestamp DESC LIMIT 20`,
+            [username]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error fetching history.' });
+    }
+});
+
+// 8. Sewadar: Contact Admin
+app.post('/api/sewadar/contact', async (req, res) => {
+    const { badgeNo, message } = req.body;
+    try {
+        await pool.query(`INSERT INTO admin_messages (badge_no, message) VALUES ($1, $2)`, [badgeNo, message]);
+        res.json({ success: true, message: 'Message sent to Admin.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error sending message.' });
+    }
+});
+
+// 9. Admin: View Messages (Inbox)
+app.get('/api/admin/messages', async (req, res) => {
+    try {
+        const query = `
+            SELECT m.*, p.name, p.pic 
+            FROM admin_messages m
+            LEFT JOIN persons p ON m.badge_no = p.badge_no
+            ORDER BY m.sent_at DESC
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching admin messages:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch messages' });
+    }
+});
+
+// ====================================================
+// --- NEW FEATURES IMPLEMENTATION (Batch 12-27) ---
+// ====================================================
+
+// 1️⃣ 12 & 2️⃣ 22: Attendance Report with Custom Date Range
+app.get('/api/attendance/report', async (req, res) => {
+    const { startDate, endDate, username } = req.query; // username optional for Admin
+    try {
+        let query = `
+            SELECT a.*, p.name 
+            FROM attendance_log a
+            JOIN users u ON a.username = u.username
+            JOIN persons p ON u.badge_no = p.badge_no
+            WHERE a.timestamp BETWEEN $1 AND $2
+        `;
+        const params = [startDate + ' 00:00:00', endDate + ' 23:59:59'];
+
+        if (username) {
+            query += ` AND a.username = $3`;
+            params.push(username);
+        }
+
+        query += ` ORDER BY a.timestamp DESC`;
+
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Report generation failed.' });
+    }
+});
+
+// 4️⃣ 15: Duty Reminder Cron Job (Runs at 8:00 PM every day)
+cron.schedule('0 20 * * *', async () => {
+    console.log('🔔 Sending Duty Reminders for Tomorrow...');
+    const tomorrow = moment().add(1, 'days').format('YYYY-MM-DD');
+
+    try {
+        const duties = await pool.query(
+            `SELECT d.*, u.email, u.name 
+             FROM duty_roster d
+             JOIN users u ON d.badge_no = u.badge_no
+             WHERE d.duty_date = $1`,
+            [tomorrow]
+        );
+
+        for (const duty of duties.rows) {
+            if (duty.email) {
+                const subject = "🔔 Duty Reminder: RSSB Sewa Tomorrow";
+                const text = `Jai Babaji Ki ${duty.name},\n\nThis is a reminder for your sewa tomorrow:\n\n📍 Place: ${duty.place}\n⏰ Time: ${duty.duration}\n\nPlease be on time.`;
+                await sendEmailNotification(duty.email, subject, text);
+            }
+        }
+    } catch (err) { console.error("Reminder Error:", err); }
+});
+
+// 6️⃣ 19: Admin Broadcast System
+app.post('/api/admin/broadcast', async (req, res) => {
+    const { message, createdBy } = req.body;
+    try {
+        await pool.query("INSERT INTO broadcast_messages (message, created_by) VALUES ($1, $2)", [message, createdBy]);
+        io.emit('broadcast-alert', { message }); // Real-time alert
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.get('/api/broadcasts', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM broadcast_messages ORDER BY created_at DESC LIMIT 5");
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// 7️⃣ 20: Admin Reply to Messages
+app.post('/api/admin/messages/reply', async (req, res) => {
+    const { messageId, replyText } = req.body;
+    try {
+        await pool.query(
+            "UPDATE admin_messages SET reply = $1, reply_at = NOW() WHERE id = $2",
+            [replyText, messageId]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// Get User's Messages with Replies
+app.get('/api/sewadar/messages/:badgeNo', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM admin_messages WHERE badge_no = $1 ORDER BY sent_at DESC", [req.params.badgeNo]);
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ success: false }); }
+});
 
 
-// --- START THE SERVER ---
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+// --- START THE SERVER (Must be at the very end) ---
+server.listen(port, () => {
+    console.log(`Server running on port http://localhost:${port}`);
 });
