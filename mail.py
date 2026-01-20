@@ -28,7 +28,7 @@ Timestamp: 11/12/2025 12:47:00 PM .
 ---
 
 Thank you for using the RSSB system.
-You can log in to your account here: https://rssb-rudrapur-database-api.onrender.com
+You can log in to your account here: https://rssbrudrapur.onrender.com
 
 For any other support or queries regarding your account or the system, please contact us at: rssbsecrudrapur@gmail.com
 

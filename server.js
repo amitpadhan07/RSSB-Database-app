@@ -25,8 +25,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // --- GEOFENCE CONFIGURATION ---
 
-const RSSB_CENTER_LAT = 27.1766701;
-const RSSB_CENTER_LON = 78.0080745;
+const RSSB_CENTER_LAT = 30.265959066215256;
+const RSSB_CENTER_LON = 78.00058088163462;
 
 const GEOFENCE_RADIUS_METERS = 500;
 const LATE_CUTOFF_HOUR = 9;
@@ -1148,7 +1148,7 @@ Temporary Password: ${generatedPassword}
 
 For security purposes, please log in and change your password immediately.
 
-You can log in to your account here: ${FRONTEND_URL || 'https://rssb-rudrapur-database-api.onrender.com'}
+You can log in to your account here: ${FRONTEND_URL || 'https://rssbrudrapur.onrender.com'}
 
 Best regards,
 The RSSB Administration Team`;
@@ -1432,7 +1432,7 @@ Timestamp: ${new Date().toLocaleString()}
 ---
 
 Thank you for using the RSSB system.
-You can log in to your account here: https://rssb-rudrapur-database-api.onrender.com
+You can log in to your account here: https://rssbrudrapur.onrender.com
 
 For any other support or queries regarding your account or the system, please contact us at: rssbsecrudrapur@gmail.com
 
@@ -1619,7 +1619,7 @@ This link is valid for 1 hour. If you did not request this, please ignore this e
 ---------
 
 Thank you for using the RSSB system.
-You can log in to your account here: https://rssb-rudrapur-database-api.onrender.com
+You can log in to your account here: https://rssbrudrapur.onrender.com
 
 For any other support or queries regarding your account or the system, please contact us at: rssbsecrudrapur@gmail.com
 
