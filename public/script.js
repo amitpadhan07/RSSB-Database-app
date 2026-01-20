@@ -1,5 +1,5 @@
 // Global BASE_URL variable.
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://rssbrudrapur.onrender.com';
 
 // Global Variables
 var CURRENT_USER = {}; 
